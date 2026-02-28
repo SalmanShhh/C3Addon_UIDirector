@@ -1,21 +1,21 @@
 <img src="./src/icon.svg" width="100" /><br>
-# Sample Addon
-<i>Description</i> <br>
-### Version 0.0.0.0
+# UIDirector
+<i>Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip — then open, close, and navigate between them with simple actions.</i> <br>
+### Version 0.0.0.1
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/ConstructFund/construct-addon-wizard-scaffold/releases/download/sample_addon-0.0.0.0.c3addon/sample_addon-0.0.0.0.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.0.1.c3addon/salmanshh_uidirector-0.0.0.1.c3addon)
 <br>
-<sub> [See all releases](https://github.com/ConstructFund/construct-addon-wizard-scaffold/releases) </sub> <br>
+<sub> [See all releases](https://github.com/SalmanShhh/C3Addon_UIDirector/releases) </sub> <br>
 
-#### What's New in 0.0.0.0
+#### What's New in 0.0.0.1
 **Added:**
-Initial release.
+init Project
 
 
 <sub>[View full changelog](#changelog)</sub>
 
 ---
-<b><u>Author:</u></b> skymen <br>
+<b><u>Author:</u></b> SalmanShh <br>
 <sub>Made using [CAW](https://marketplace.visualstudio.com/items?itemName=skymen.caw) </sub><br>
 
 ## Table of Contents
@@ -47,39 +47,105 @@ npm run dev
 ## Properties
 | Property Name | Description | Type |
 | --- | --- | --- |
+| UI Container Layer | Name of the group layer in your layout that contains all managed UI sublayers. Example: if your group layer is called "UI", enter "UI" here. | text |
+| Default Animation | The default transition animation played when showing or hiding a layer. Can be overridden per-layer with Set Layer Animation. | combo |
+| Default Anim Duration (ms) | How long the default transition animation takes, in milliseconds. Example: 200 = a quick 0.2 second fade. | integer |
+| Default Easing | The easing curve applied to the default animation. EaseOut feels snappy and responsive; EaseInOut feels smooth. | combo |
+| Persist Across Layouts | If enabled, UIDirector remembers tracked layers and their states when the layout changes. Layer references are re-resolved on the new layout. | check |
+| Debug Mode | If enabled, UIDirector logs all operations to the browser console (F12 → Console). Useful during development — turn off before release. | check |
 
 
 ---
 ## Actions
 | Action | Description | Params
 | --- | --- | --- |
-| Sample Action Combo | This is a sample action | Param1             *(combo)* <br> |
-| Sample Action | This is a sample action | Param1             *(string)* <br> |
-| Sample Action Async | This is a sample action |  |
-| Sample Action | This is a sample action | Param1             *(string)* <br> |
+| Close popup | Hide a popup window. The screen behind it regains input. Example: player clicks Cancel in a dialog -> ClosePopup("Confirm Quit"). | Layer name             *(string)* <br> |
+| Go back | Return to the previous screen, like pressing a Back button. UIDirector automatically restores the previous screen's position and interactive state. Example: player presses Escape in Settings -> GoBack() returns them to the Main Menu. |  |
+| Hide tooltip | Hide whichever tooltip is currently visible. Example: mouse leaves a button → HideTip() dismisses the hint. |  |
+| Open popup | Show a popup window above the current screen. The screen behind it remains visible but is blocked from input. Example: player clicks Quit → OpenPopup("Confirm Quit"). Multiple popups can be open at once. | Layer name             *(string)* <br> |
+| Setup popup layer | Register a layer as a popup. Popups appear above all screens and do not affect back-navigation. Example: setup 'Confirm Quit', 'Error Dialog', or 'Level Complete' as popups. | Layer name             *(string)* <br> |
+| Setup screen layer | Register a layer as a navigable screen. Call this at layout start for every UI screen you want to manage. Example: setup 'Main Menu', 'Settings', and 'Game Over' as screens so you can show/hide them with ShowScreen and GoBack. | Layer name             *(string)* <br> |
+| Setup tooltip layer | Register a layer as a tooltip. Tooltips are display-only (never interactive) and always render on top of everything. Only one tooltip can be visible at a time — showing a new one hides the previous. Example: setup 'Item Description', 'Hover Hint'. | Layer name             *(string)* <br> |
+| Show screen | Navigate to a screen, pushing it on top of the current one. The player can return using GoBack. Example: player taps the Settings button → ShowScreen("Settings"). | Layer name             *(string)* <br> |
+| Show tooltip | Show a tooltip or hint to the player. Tooltips are display-only — they can never be clicked. Only one tooltip can be visible at a time; showing a new one automatically hides the previous. Example: mouse hovers over a sword icon → ShowTip("Sword Info"). | Layer name             *(string)* <br> |
+| Focus layer | Push a normal-role layer to the top of the focus stack, making it the active screen. Saves its current Z-position so it can be restored on pop, and snapshots all other layers' interactive state. If modal, disables input on all other normal layers. Plays the opening animation. Example: navigate to a Settings screen on top of the Main Menu. | Layer name             *(string)* <br> |
+| Pop focus stack | Remove the top layer from the focus stack and return to the previous one. Restores the layer's original Z-position and the exact interactive states of all normal layers from before it was focused. Plays the closing animation. Example: the player presses Back → pop returns them to where they were. |  |
+| Pop focus stack to layer | Pop layers one at a time until the specified layer is at the top of the focus stack. Pass an empty string to clear the entire stack. Example: from a deeply nested settings sub-page, call PopFocusToLayer("Main Menu") to jump directly back to the root. | Layer name             *(string)* <br> |
+| Set layer animation | Override the default animation for a specific layer. Useful when different screens need different transitions. Example: make 'Game Over' slide in from the bottom (Slide Down, 400ms, EaseIn) while other screens use the default fade. | Layer name             *(string)* <br>Animation type             *(combo)* <br>Duration (ms)             *(number)* <br>Easing             *(combo)* <br> |
+| Set layer manage collisions | Enable or disable automatic collision management for a layer. When enabled, the collisionsEnabled flag on every instance on this layer mirrors the layer's interactive state — so hidden/disabled layers automatically stop receiving collision checks. Example: enable on 'Enemy Layer' to prevent hit detection while the pause menu is open. | Layer name             *(string)* <br>Enabled             *(boolean)* <br> |
+| Set layer data | Store an arbitrary string value on a tracked layer under a named key. Retrieve it later with the Layer Data expression. Example: before showing 'Item Detail', set its data "itemId" = "sword_01" so the screen knows what to display. | Layer name             *(string)* <br>Key             *(string)* <br>Value             *(string)* <br> |
+| Set layer interactable | Manually override a layer's interactive property. UIDirector will not override this until the next state change. Use sparingly — prefer Set Layer State for normal state management. Example: temporarily disable a layer's buttons while an animation plays. | Layer name             *(string)* <br>Interactable             *(boolean)* <br> |
+| Set layer modal | Change whether a normal-role layer is modal. A modal layer, when focused, disables all other normal layers so only it can receive input. Takes effect on the next Focus Layer call. Example: make 'Credits' non-modal so the HUD remains interactive while it's shown. | Layer name             *(string)* <br>Modal             *(boolean)* <br> |
+| Set layer state | Transition a tracked layer to a specific state, playing the configured animation. Visible = shown and interactive. Hidden = invisible and non-interactive. Disabled = visible but non-interactive (greyed-out effect). Example: set 'HUD' to Disabled while a cutscene plays. | Layer name             *(string)* <br>State             *(combo)* <br> |
+| Hide popup | Hide a popup-role layer. Plays the closing animation. The screen behind it is unaffected. Example: dismiss the 'Confirm Quit' dialog when the player clicks Cancel. | Layer name             *(string)* <br> |
+| Show popup | Show a popup-role layer above all normal screens. Popups do not push onto the focus stack — they are independent overlays. Multiple popups can be visible simultaneously. Plays the opening animation. Example: show a 'Level Complete' banner while the game world is still visible behind it. | Layer name             *(string)* <br> |
+| Hide active tooltip | Hide whichever tooltip is currently visible, without needing to know its name. Safe to call even when no tooltip is visible. Example: on mouse-leave of any button → HideActiveTooltip(). |  |
+| Hide tooltip | Hide a specific tooltip-role layer. If it is the currently active tooltip, clears the active tooltip tracking. Example: hide 'Sword Description' when the player stops hovering over the sword. | Layer name             *(string)* <br> |
+| Show tooltip | Show a tooltip-role layer. Tooltips are always display-only (interactive is always false) and render above everything else. Only one tooltip can be visible at a time — calling ShowTooltip when one is already visible will hide the previous one first. Example: show an item description panel when the player hovers over an inventory slot. | Layer name             *(string)* <br> |
+| Track layer | Register a sublayer with UIDirector so it can be controlled by other actions. Call this once per layer at layout start. Role determines how the layer behaves: Normal = navigable screen, Popup = overlay above screens, Tooltip = display-only overlay. Modal = when focused, all other normal layers are made non-interactive. Manage collisions = collision detection mirrors the layer's interactive state. | Layer name             *(string)* <br>Role             *(combo)* <br>Modal             *(boolean)* <br>Manage collisions             *(boolean)* <br> |
+| Untrack all layers | Remove all layers from UIDirector's tracking and clear all stacks. Does not modify any layer's visible/interactive state. Useful when changing layouts or resetting UI state completely. |  |
+| Untrack layer | Remove a layer from UIDirector's tracking. UIDirector will no longer control it. Does not change the layer's current visible/interactive state. Example: untrack a layer before destroying it or handing control back to your own event sheet. | Layer name             *(string)* <br> |
+| Complete transition | Immediately finish any in-progress animation on a layer and apply its final state. Use this to skip an animation or to signal completion when you handle animations yourself in the event sheet. Example: on a skip-cutscene button press, call CompleteTransition for all layers to snap them to their final states. | Layer name             *(string)* <br> |
+| Skip all animations | Immediately complete all currently in-progress layer transition animations. All animating layers snap to their final states. Example: call this when the player enters accessibility settings or on low-performance devices to disable all transitions at once. |  |
 
 
 ---
 ## Conditions
 | Condition | Description | Params
 | --- | --- | --- |
-| Sample Condition | This is a sample condition | Param1 *(combo)* <br> |
-| Sample Condition | This is a sample condition | Param1 *(string)* <br> |
-| Sample Trigger | This is a sample trigger |  |
-| Sample Condition | This is a sample condition |  |
+| Can go back | True when there is a previous screen to return to. Use this to show or hide a Back button. Example: if CanGoBack → set Back button visible, else set it invisible. |  |
+| On popup closed | Fires when a popup is hidden. Use this to react after a dialog is dismissed. Example: check if the player confirmed or cancelled after 'Confirm Quit' closes. | Layer name *(string)* <br> |
+| On popup opened | Fires when a popup becomes visible. Use this to react when a dialog appears. Example: dim the background or play a sound when 'Confirm Quit' opens. | Layer name *(string)* <br> |
+| On screen hidden | Fires when a screen is dismissed (popped from the focus stack). Use this to clean up or resume things after a screen closes. Example: resume game music when the 'Pause Menu' is dismissed. | Layer name *(string)* <br> |
+| On screen shown | Fires when a screen becomes the active (focused) screen. Use this to react when the player navigates to a screen. Example: play a swoosh sound, start a timer, or animate in a character when 'Pause Menu' opens. | Layer name *(string)* <br> |
+| Focus stack is empty | True when no layers are on the focus stack (no screens have been focused via Focus Layer). Example: use this to show a first-launch screen, or to handle the case where the player has navigated all the way back to the root. |  |
+| Layer is focused | True if the named layer is currently at the top of the focus stack (i.e., it is the active screen). Example: only show the options for 'Settings' while it is focused. | Layer name *(string)* <br> |
+| Layer is animating | True while a transition animation is in progress on the layer. Layers are never interactive while animating. Example: disable a Back button while the current screen is still sliding in. | Layer name *(string)* <br> |
+| Layer is in state | True if the named layer is currently in the given state. States: visible (shown + interactive), hidden (invisible), disabled (visible but not interactive), focused (focused on stack). Example: if 'Pause Menu' is in state visible → show the Resume button. | Layer name *(string)* <br>State *(combo)* <br> |
+| Layer is interactable | True if the layer's interactive property is currently enabled. Note: this checks the live C3 layer value, not UIDirector's state. Example: use this to guard input handling — only process button clicks if the layer is interactable. | Layer name *(string)* <br> |
+| Layer is modal | True if the layer is configured as modal. A modal layer, when focused, disables input on all other normal layers. Example: use to decide whether to show a dimmed overlay behind a dialog. | Layer name *(string)* <br> |
+| Layer is visible | True if the layer's visible property is currently enabled. Note: a Disabled-state layer is visible but not interactive — this condition returns true for it. Example: use to check if a HUD layer is currently showing. | Layer name *(string)* <br> |
+| Layer manages collisions | True if collision management is enabled for this layer. When enabled, instance collisionsEnabled automatically mirrors the layer's interactive state. | Layer name *(string)* <br> |
+| Any popup is visible | True when at least one popup-role layer is currently visible. Example: use to disable background interactions or show a dim overlay whenever any dialog is open. |  |
+| A tooltip is visible | True when any tooltip-role layer is currently visible. Example: use to suppress other hover effects while a tooltip is already showing. |  |
+| Layer is tracked | True if the named layer has been registered with UIDirector (via Track Layer or Setup Screen/Popup/Tooltip). Use this as a safety check before performing other actions on a layer. | Layer name *(string)* <br> |
+| On any layer state changed | Fires after any tracked layer finishes transitioning to a new state. Use LastChangedLayer and LastChangedState expressions to know which layer changed and what state it moved to. Example: update a debug HUD whenever any UI state changes. |  |
+| On layer closing | Fires at the start of a layer's closing animation — before the animation completes. Use this to begin a parallel exit sequence. Example: start fading out background music as 'Pause Menu' begins to close. | Layer name *(string)* <br> |
+| On layer focused | Fires after a layer is focused (pushed onto the focus stack) and its opening animation completes. Example: start a timer or begin an entrance animation sequence after 'Settings' finishes sliding in. | Layer name *(string)* <br> |
+| On layer opening | Fires at the start of a layer's opening animation — before the animation completes. Use this to prepare content or start a parallel animation while the transition plays. Example: begin fading in background music as 'Main Menu' starts to slide in. | Layer name *(string)* <br> |
+| On layer state changed | Fires after a tracked layer finishes transitioning to a new state (after the animation completes). Use this to run logic that depends on the final state of a layer. Example: after 'Game Over' becomes visible, show the retry button. | Layer name *(string)* <br> |
+| On layer transition complete | Fires when a layer's animation (open or close) finishes and the layer is in its final state. Use this when you need to know the exact moment a transition ends. Example: enable a button only after the screen has fully finished animating in. | Layer name *(string)* <br> |
+| On layer unfocused | Fires after a layer is popped from the focus stack and its closing animation completes. Example: stop a timer or clean up resources after 'Settings' finishes closing. | Layer name *(string)* <br> |
 
 
 ---
 ## Expressions
 | Expression | Description | Return Type | Params
 | --- | --- | --- | --- |
-| Expression2 | Sample Expression | string |  | 
-| Expression | Sample Expression | number |  | 
-| SampleExpression | This is a sample expression | string |  | 
+| CurrentScreen | The name of the screen the player is currently on. Returns an empty string if no screen is focused. Example: set a Text object to CurrentScreen() to display which screen is active in a debug HUD. | string |  | 
+| FocusedLayer | The name of the layer currently at the top of the focus stack (the active screen). Returns an empty string if no layer is focused. Example: use to log the current screen name, or to run screen-specific logic without a chain of conditions. | string |  | 
+| FocusStackDepth | The number of layers currently on the focus stack. 0 means no screens are active. 1 means one screen is focused. Higher values mean the player has navigated deeper into nested screens. Example: use to show a breadcrumb trail or depth indicator. | number |  | 
+| LayerData | Retrieve a custom data value stored on a layer with Set Layer Data. Returns an empty string if the key does not exist. Example: LayerData("Item Detail", "itemId") returns the item ID that was stored before opening the screen. | string | Layer name *(string)* <br>Key *(string)* <br> | 
+| LayerRole | The role of a tracked layer: "normal", "popup", or "tooltip". Returns an empty string if the layer is not tracked. Example: use to display the layer role in a debug overlay. | string | Layer name *(string)* <br> | 
+| LayerState | The current state of a tracked layer: "visible", "hidden", "disabled", or "focused". Returns an empty string if the layer is not tracked. Example: use in a Text object to display the current state for debugging. | string | Layer name *(string)* <br> | 
+| PreviousLayerState | The state a tracked layer was in before its most recent transition. Useful for implementing undo logic or restoring a layer after a temporary change. Example: if PreviousLayerState("HUD") = "visible" → re-show the HUD after a cutscene. | string | Layer name *(string)* <br> | 
+| TopPopup | The name of the most recently shown popup layer. Returns an empty string if no popups are visible. Example: use to determine which dialog the player is currently interacting with. | string |  | 
+| ActiveTooltip | The name of the currently visible tooltip layer. Returns an empty string if no tooltip is showing. Example: use to log which tooltip is active or to apply custom logic for specific tooltips. | string |  | 
+| LastChangedLayer | The name of the most recently changed layer. Available inside On Layer State Changed and On Any Layer State Changed triggers. Example: use LastChangedLayer in the On Any Layer State Changed trigger to log state changes for all screens in one event. | string |  | 
+| LastChangedState | The state that the most recently changed layer transitioned to (e.g., "visible", "hidden", "disabled", "focused"). Use together with LastChangedLayer inside On Any Layer State Changed. Example: if LastChangedState = "hidden" → play a dismiss sound. | string |  | 
+| LayerAnimDirection | The current animation direction of a layer: "opening" while it is animating in, "closing" while animating out, or an empty string when not animating. Example: play a different sound effect depending on whether a screen is opening or closing. | string | Layer name *(string)* <br> | 
+| LayerAnimProgress | The current animation progress of a layer, from 0 (start) to 1 (complete). Useful for driving custom visual effects in sync with a layer's transition. Example: set a custom overlay opacity to LayerAnimProgress("Settings") while it fades in. | number | Layer name *(string)* <br> | 
 
 
 ---
 ## Changelog
+
+### Version 0.0.0.1
+
+**Added:**
+init Project
+
+---
 
 ### Version 0.0.0.0
 

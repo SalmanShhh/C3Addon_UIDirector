@@ -5,114 +5,748 @@
     "plugins": {
       "salmanshh_uidirector": {
         "name": "UIDirector",
-        "description": "Track any layer as a named screen, popup, or tooltip — then open, close, and navigate between them with simple actions. Focus stacks handle back-navigation automatically, animations play on every transition, and interactivity is always kept consistent.",
+        "description": "Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip — then open, close, and navigate between them with simple actions.",
         "help-url": "https://www.construct.net",
         "aceCategories": {
-          "Aces_Files_In_Category_Folder": "Aces_Files_In_Category_Folder",
-          "Ace_Folders_In_Category_Folder": "Ace_Folders_In_Category_Folder",
-          "Aces_In_Single_File": "Aces_In_Single_File"
+          "Common": "Common",
+          "Focus_Stack": "Focus Stack",
+          "Layer_State": "Layer State",
+          "Popups": "Popups",
+          "Tooltips": "Tooltips",
+          "Tracking": "Layer Tracking",
+          "Transitions": "Transitions & Events"
         },
-        "properties": {},
+        "properties": {
+          "uiContainerLayer": {
+            "name": "UI Container Layer",
+            "desc": "Name of the group layer in your layout that contains all managed UI sublayers. Example: if your group layer is called \"UI\", enter \"UI\" here."
+          },
+          "defaultAnimType": {
+            "name": "Default Animation",
+            "desc": "The default transition animation played when showing or hiding a layer. Can be overridden per-layer with Set Layer Animation.",
+            "items": {
+              "fade": "Fade",
+              "slideLeft": "Slide Left",
+              "slideRight": "Slide Right",
+              "slideUp": "Slide Up",
+              "slideDown": "Slide Down",
+              "none": "None (instant)"
+            }
+          },
+          "defaultAnimDuration": {
+            "name": "Default Anim Duration (ms)",
+            "desc": "How long the default transition animation takes, in milliseconds. Example: 200 = a quick 0.2 second fade."
+          },
+          "defaultAnimEasing": {
+            "name": "Default Easing",
+            "desc": "The easing curve applied to the default animation. EaseOut feels snappy and responsive; EaseInOut feels smooth.",
+            "items": {
+              "linear": "Linear",
+              "easeIn": "Ease In",
+              "easeOut": "Ease Out",
+              "easeInOut": "Ease In Out"
+            }
+          },
+          "persistAcrossLayouts": {
+            "name": "Persist Across Layouts",
+            "desc": "If enabled, UIDirector remembers tracked layers and their states when the layout changes. Layer references are re-resolved on the new layout."
+          },
+          "debugMode": {
+            "name": "Debug Mode",
+            "desc": "If enabled, UIDirector logs all operations to the browser console (F12 → Console). Useful during development — turn off before release."
+          }
+        },
         "actions": {
-          "Action": {
-            "list-name": "Sample Action",
-            "display-text": "Sample Action {0}",
-            "description": "This is a sample action",
+          "ClosePopup": {
+            "list-name": "Close popup",
+            "display-text": "Close popup {0}",
+            "description": "Hide a popup window. The screen behind it regains input. Example: player clicks Cancel in a dialog -> ClosePopup(\"Confirm Quit\").",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param"
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the popup layer to close."
               }
             }
           },
-          "AsyncAction": {
-            "list-name": "Sample Action Async",
-            "display-text": "Sample Action Async",
-            "description": "This is a sample action",
+          "GoBack": {
+            "list-name": "Go back",
+            "display-text": "Go back",
+            "description": "Return to the previous screen, like pressing a Back button. UIDirector automatically restores the previous screen's position and interactive state. Example: player presses Escape in Settings -> GoBack() returns them to the Main Menu.",
             "params": {}
           },
-          "ActionCombo": {
-            "list-name": "Sample Action Combo",
-            "display-text": "Sample Action Combo {0}",
-            "description": "This is a sample action",
+          "HideTip": {
+            "list-name": "Hide tooltip",
+            "display-text": "Hide tooltip",
+            "description": "Hide whichever tooltip is currently visible. Example: mouse leaves a button → HideTip() dismisses the hint.",
+            "params": {}
+          },
+          "OpenPopup": {
+            "list-name": "Open popup",
+            "display-text": "Open popup {0}",
+            "description": "Show a popup window above the current screen. The screen behind it remains visible but is blocked from input. Example: player clicks Quit → OpenPopup(\"Confirm Quit\"). Multiple popups can be open at once.",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param",
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the popup layer to show."
+              }
+            }
+          },
+          "SetupPopupLayer": {
+            "list-name": "Setup popup layer",
+            "display-text": "Setup popup layer {0}",
+            "description": "Register a layer as a popup. Popups appear above all screens and do not affect back-navigation. Example: setup 'Confirm Quit', 'Error Dialog', or 'Level Complete' as popups.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the sublayer inside your UI container group layer."
+              }
+            }
+          },
+          "SetupScreen": {
+            "list-name": "Setup screen layer",
+            "display-text": "Setup screen layer {0}",
+            "description": "Register a layer as a navigable screen. Call this at layout start for every UI screen you want to manage. Example: setup 'Main Menu', 'Settings', and 'Game Over' as screens so you can show/hide them with ShowScreen and GoBack.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the sublayer inside your UI container group layer."
+              }
+            }
+          },
+          "SetupTooltipLayer": {
+            "list-name": "Setup tooltip layer",
+            "display-text": "Setup tooltip layer {0}",
+            "description": "Register a layer as a tooltip. Tooltips are display-only (never interactive) and always render on top of everything. Only one tooltip can be visible at a time — showing a new one hides the previous. Example: setup 'Item Description', 'Hover Hint'.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the sublayer inside your UI container group layer."
+              }
+            }
+          },
+          "ShowScreen": {
+            "list-name": "Show screen",
+            "display-text": "Show screen {0}",
+            "description": "Navigate to a screen, pushing it on top of the current one. The player can return using GoBack. Example: player taps the Settings button → ShowScreen(\"Settings\").",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the screen layer to show."
+              }
+            }
+          },
+          "ShowTip": {
+            "list-name": "Show tooltip",
+            "display-text": "Show tooltip {0}",
+            "description": "Show a tooltip or hint to the player. Tooltips are display-only — they can never be clicked. Only one tooltip can be visible at a time; showing a new one automatically hides the previous. Example: mouse hovers over a sword icon → ShowTip(\"Sword Info\").",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the tooltip layer to show."
+              }
+            }
+          },
+          "FocusLayer": {
+            "list-name": "Focus layer",
+            "display-text": "Focus layer {0}",
+            "description": "Push a normal-role layer to the top of the focus stack, making it the active screen. Saves its current Z-position so it can be restored on pop, and snapshots all other layers' interactive state. If modal, disables input on all other normal layers. Plays the opening animation. Example: navigate to a Settings screen on top of the Main Menu.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The normal-role layer to push onto the focus stack."
+              }
+            }
+          },
+          "PopFocusStack": {
+            "list-name": "Pop focus stack",
+            "display-text": "Pop focus stack",
+            "description": "Remove the top layer from the focus stack and return to the previous one. Restores the layer's original Z-position and the exact interactive states of all normal layers from before it was focused. Plays the closing animation. Example: the player presses Back → pop returns them to where they were.",
+            "params": {}
+          },
+          "PopFocusToLayer": {
+            "list-name": "Pop focus stack to layer",
+            "display-text": "Pop focus stack until {0} is on top",
+            "description": "Pop layers one at a time until the specified layer is at the top of the focus stack. Pass an empty string to clear the entire stack. Example: from a deeply nested settings sub-page, call PopFocusToLayer(\"Main Menu\") to jump directly back to the root.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to pop to. Pass an empty string (\"\") to clear the entire focus stack."
+              }
+            }
+          },
+          "SetLayerAnimation": {
+            "list-name": "Set layer animation",
+            "display-text": "Set layer {0} animation: {1}, {2} ms, {3}",
+            "description": "Override the default animation for a specific layer. Useful when different screens need different transitions. Example: make 'Game Over' slide in from the bottom (Slide Down, 400ms, EaseIn) while other screens use the default fade.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to configure."
+              },
+              "type": {
+                "name": "Animation type",
+                "desc": "The type of transition animation to play when this layer opens or closes.",
                 "items": {
-                  "test": "test",
-                  "test2": "test2"
+                  "fade": "Fade",
+                  "slideLeft": "Slide Left",
+                  "slideRight": "Slide Right",
+                  "slideUp": "Slide Up",
+                  "slideDown": "Slide Down",
+                  "none": "None (instant)"
+                }
+              },
+              "duration": {
+                "name": "Duration (ms)",
+                "desc": "How long the animation takes in milliseconds."
+              },
+              "easing": {
+                "name": "Easing",
+                "desc": "The easing curve applied to the animation.",
+                "items": {
+                  "linear": "Linear",
+                  "easeIn": "Ease In",
+                  "easeOut": "Ease Out",
+                  "easeInOut": "Ease In Out"
                 }
               }
             }
           },
-          "SampleAction": {
-            "list-name": "Sample Action",
-            "display-text": "Sample Action {0}",
-            "description": "This is a sample action",
+          "SetLayerCollisions": {
+            "list-name": "Set layer manage collisions",
+            "display-text": "Set layer {0} manage collisions: {1}",
+            "description": "Enable or disable automatic collision management for a layer. When enabled, the collisionsEnabled flag on every instance on this layer mirrors the layer's interactive state — so hidden/disabled layers automatically stop receiving collision checks. Example: enable on 'Enemy Layer' to prevent hit detection while the pause menu is open.",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param"
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to configure."
+              },
+              "enabled": {
+                "name": "Enabled",
+                "desc": "True = automatically manage collisionsEnabled on instances. False = leave collision states unchanged."
               }
             }
+          },
+          "SetLayerData": {
+            "list-name": "Set layer data",
+            "display-text": "Set layer {0} data [{1}] = {2}",
+            "description": "Store an arbitrary string value on a tracked layer under a named key. Retrieve it later with the Layer Data expression. Example: before showing 'Item Detail', set its data \"itemId\" = \"sword_01\" so the screen knows what to display.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to store data on."
+              },
+              "key": {
+                "name": "Key",
+                "desc": "The key name for this data value."
+              },
+              "value": {
+                "name": "Value",
+                "desc": "The string value to store."
+              }
+            }
+          },
+          "SetLayerInteractable": {
+            "list-name": "Set layer interactable",
+            "display-text": "Set layer {0} interactable: {1}",
+            "description": "Manually override a layer's interactive property. UIDirector will not override this until the next state change. Use sparingly — prefer Set Layer State for normal state management. Example: temporarily disable a layer's buttons while an animation plays.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to modify."
+              },
+              "enable": {
+                "name": "Interactable",
+                "desc": "True = layer receives pointer/touch input. False = layer ignores input."
+              }
+            }
+          },
+          "SetLayerModal": {
+            "list-name": "Set layer modal",
+            "display-text": "Set layer {0} modal: {1}",
+            "description": "Change whether a normal-role layer is modal. A modal layer, when focused, disables all other normal layers so only it can receive input. Takes effect on the next Focus Layer call. Example: make 'Credits' non-modal so the HUD remains interactive while it's shown.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked normal-role layer to modify."
+              },
+              "isModal": {
+                "name": "Modal",
+                "desc": "True = disable all other normal layers when this one is focused. False = leave other layers' interactive states unchanged."
+              }
+            }
+          },
+          "SetLayerState": {
+            "list-name": "Set layer state",
+            "display-text": "Set layer {0} to {1}",
+            "description": "Transition a tracked layer to a specific state, playing the configured animation. Visible = shown and interactive. Hidden = invisible and non-interactive. Disabled = visible but non-interactive (greyed-out effect). Example: set 'HUD' to Disabled while a cutscene plays.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to change."
+              },
+              "state": {
+                "name": "State",
+                "desc": "The target state: visible (shown + interactive), hidden (invisible), or disabled (visible but not interactive).",
+                "items": {
+                  "visible": "Visible",
+                  "hidden": "Hidden",
+                  "disabled": "Disabled"
+                }
+              }
+            }
+          },
+          "HidePopup": {
+            "list-name": "Hide popup",
+            "display-text": "Hide popup {0}",
+            "description": "Hide a popup-role layer. Plays the closing animation. The screen behind it is unaffected. Example: dismiss the 'Confirm Quit' dialog when the player clicks Cancel.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The popup-role layer to hide."
+              }
+            }
+          },
+          "ShowPopup": {
+            "list-name": "Show popup",
+            "display-text": "Show popup {0}",
+            "description": "Show a popup-role layer above all normal screens. Popups do not push onto the focus stack — they are independent overlays. Multiple popups can be visible simultaneously. Plays the opening animation. Example: show a 'Level Complete' banner while the game world is still visible behind it.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The popup-role layer to show."
+              }
+            }
+          },
+          "HideActiveTooltip": {
+            "list-name": "Hide active tooltip",
+            "display-text": "Hide active tooltip",
+            "description": "Hide whichever tooltip is currently visible, without needing to know its name. Safe to call even when no tooltip is visible. Example: on mouse-leave of any button → HideActiveTooltip().",
+            "params": {}
+          },
+          "HideTooltip": {
+            "list-name": "Hide tooltip",
+            "display-text": "Hide tooltip {0}",
+            "description": "Hide a specific tooltip-role layer. If it is the currently active tooltip, clears the active tooltip tracking. Example: hide 'Sword Description' when the player stops hovering over the sword.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tooltip-role layer to hide."
+              }
+            }
+          },
+          "ShowTooltip": {
+            "list-name": "Show tooltip",
+            "display-text": "Show tooltip {0}",
+            "description": "Show a tooltip-role layer. Tooltips are always display-only (interactive is always false) and render above everything else. Only one tooltip can be visible at a time — calling ShowTooltip when one is already visible will hide the previous one first. Example: show an item description panel when the player hovers over an inventory slot.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tooltip-role layer to show."
+              }
+            }
+          },
+          "TrackLayer": {
+            "list-name": "Track layer",
+            "display-text": "Track layer {0} as {1} | Modal: {2} | Manage collisions: {3}",
+            "description": "Register a sublayer with UIDirector so it can be controlled by other actions. Call this once per layer at layout start. Role determines how the layer behaves: Normal = navigable screen, Popup = overlay above screens, Tooltip = display-only overlay. Modal = when focused, all other normal layers are made non-interactive. Manage collisions = collision detection mirrors the layer's interactive state.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the sublayer inside your UI container group layer."
+              },
+              "role": {
+                "name": "Role",
+                "desc": "How UIDirector treats this layer: Normal = screen in the focus stack, Popup = overlay that doesn't affect navigation, Tooltip = display-only overlay always on top.",
+                "items": {
+                  "normal": "Normal",
+                  "popup": "Popup",
+                  "tooltip": "Tooltip"
+                }
+              },
+              "isModal": {
+                "name": "Modal",
+                "desc": "If true, focusing this layer disables all other normal layers' interactivity while it is in focus."
+              },
+              "manageCollisions": {
+                "name": "Manage collisions",
+                "desc": "If true, collisionsEnabled on all instances on this layer will mirror its interactive state automatically."
+              }
+            }
+          },
+          "UntrackAllLayers": {
+            "list-name": "Untrack all layers",
+            "display-text": "Untrack all layers",
+            "description": "Remove all layers from UIDirector's tracking and clear all stacks. Does not modify any layer's visible/interactive state. Useful when changing layouts or resetting UI state completely.",
+            "params": {}
+          },
+          "UntrackLayer": {
+            "list-name": "Untrack layer",
+            "display-text": "Untrack layer {0}",
+            "description": "Remove a layer from UIDirector's tracking. UIDirector will no longer control it. Does not change the layer's current visible/interactive state. Example: untrack a layer before destroying it or handing control back to your own event sheet.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the layer to stop tracking."
+              }
+            }
+          },
+          "CompleteTransition": {
+            "list-name": "Complete transition",
+            "display-text": "Complete transition for layer {0}",
+            "description": "Immediately finish any in-progress animation on a layer and apply its final state. Use this to skip an animation or to signal completion when you handle animations yourself in the event sheet. Example: on a skip-cutscene button press, call CompleteTransition for all layers to snap them to their final states.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer whose transition should be completed immediately."
+              }
+            }
+          },
+          "SkipAllAnimations": {
+            "list-name": "Skip all animations",
+            "display-text": "Skip all layer animations",
+            "description": "Immediately complete all currently in-progress layer transition animations. All animating layers snap to their final states. Example: call this when the player enters accessibility settings or on low-performance devices to disable all transitions at once.",
+            "params": {}
           }
         },
         "conditions": {
-          "Condition": {
-            "list-name": "Sample Condition",
-            "display-text": "Sample Condition {0}",
-            "description": "This is a sample condition",
+          "CanGoBack": {
+            "list-name": "Can go back",
+            "display-text": "Can go back",
+            "description": "True when there is a previous screen to return to. Use this to show or hide a Back button. Example: if CanGoBack → set Back button visible, else set it invisible.",
+            "params": {}
+          },
+          "OnPopupClosed": {
+            "list-name": "On popup closed",
+            "display-text": "On popup {0} closed",
+            "description": "Fires when a popup is hidden. Use this to react after a dialog is dismissed. Example: check if the player confirmed or cancelled after 'Confirm Quit' closes.",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param"
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The popup layer to watch."
               }
             }
           },
-          "Trigger": {
-            "list-name": "Sample Trigger",
-            "display-text": "Sample Trigger",
-            "description": "This is a sample trigger",
+          "OnPopupOpened": {
+            "list-name": "On popup opened",
+            "display-text": "On popup {0} opened",
+            "description": "Fires when a popup becomes visible. Use this to react when a dialog appears. Example: dim the background or play a sound when 'Confirm Quit' opens.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The popup layer to watch."
+              }
+            }
+          },
+          "OnScreenHidden": {
+            "list-name": "On screen hidden",
+            "display-text": "On screen {0} hidden",
+            "description": "Fires when a screen is dismissed (popped from the focus stack). Use this to clean up or resume things after a screen closes. Example: resume game music when the 'Pause Menu' is dismissed.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The screen layer to watch."
+              }
+            }
+          },
+          "OnScreenShown": {
+            "list-name": "On screen shown",
+            "display-text": "On screen {0} shown",
+            "description": "Fires when a screen becomes the active (focused) screen. Use this to react when the player navigates to a screen. Example: play a swoosh sound, start a timer, or animate in a character when 'Pause Menu' opens.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The screen layer to watch. Use the exact layer name you registered with Setup Screen."
+              }
+            }
+          },
+          "FocusStackIsEmpty": {
+            "list-name": "Focus stack is empty",
+            "display-text": "Focus stack is empty",
+            "description": "True when no layers are on the focus stack (no screens have been focused via Focus Layer). Example: use this to show a first-launch screen, or to handle the case where the player has navigated all the way back to the root.",
             "params": {}
           },
-          "ConditionCombo": {
-            "list-name": "Sample Condition",
-            "display-text": "Sample Condition {0}",
-            "description": "This is a sample condition",
+          "LayerIsFocused": {
+            "list-name": "Layer is focused",
+            "display-text": "Layer {0} is focused",
+            "description": "True if the named layer is currently at the top of the focus stack (i.e., it is the active screen). Example: only show the options for 'Settings' while it is focused.",
             "params": {
-              "param1": {
-                "name": "Param1",
-                "desc": "This is a sample param",
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to check."
+              }
+            }
+          },
+          "LayerIsAnimating": {
+            "list-name": "Layer is animating",
+            "display-text": "Layer {0} is animating",
+            "description": "True while a transition animation is in progress on the layer. Layers are never interactive while animating. Example: disable a Back button while the current screen is still sliding in.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to check."
+              }
+            }
+          },
+          "LayerIsInState": {
+            "list-name": "Layer is in state",
+            "display-text": "Layer {0} is in state {1}",
+            "description": "True if the named layer is currently in the given state. States: visible (shown + interactive), hidden (invisible), disabled (visible but not interactive), focused (focused on stack). Example: if 'Pause Menu' is in state visible → show the Resume button.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to check."
+              },
+              "state": {
+                "name": "State",
+                "desc": "The state to check against.",
                 "items": {
-                  "TRUE": "True",
-                  "FALSE": "False"
+                  "visible": "Visible",
+                  "hidden": "Hidden",
+                  "disabled": "Disabled",
+                  "focused": "Focused"
                 }
               }
             }
           },
-          "SampleCondition": {
-            "list-name": "Sample Condition",
-            "display-text": "Sample Condition",
-            "description": "This is a sample condition",
+          "LayerIsInteractable": {
+            "list-name": "Layer is interactable",
+            "display-text": "Layer {0} is interactable",
+            "description": "True if the layer's interactive property is currently enabled. Note: this checks the live C3 layer value, not UIDirector's state. Example: use this to guard input handling — only process button clicks if the layer is interactable.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to check."
+              }
+            }
+          },
+          "LayerIsModal": {
+            "list-name": "Layer is modal",
+            "display-text": "Layer {0} is modal",
+            "description": "True if the layer is configured as modal. A modal layer, when focused, disables input on all other normal layers. Example: use to decide whether to show a dimmed overlay behind a dialog.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to check."
+              }
+            }
+          },
+          "LayerIsVisible": {
+            "list-name": "Layer is visible",
+            "display-text": "Layer {0} is visible",
+            "description": "True if the layer's visible property is currently enabled. Note: a Disabled-state layer is visible but not interactive — this condition returns true for it. Example: use to check if a HUD layer is currently showing.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to check."
+              }
+            }
+          },
+          "LayerManagesCollisions": {
+            "list-name": "Layer manages collisions",
+            "display-text": "Layer {0} manages collisions",
+            "description": "True if collision management is enabled for this layer. When enabled, instance collisionsEnabled automatically mirrors the layer's interactive state.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to check."
+              }
+            }
+          },
+          "AnyPopupVisible": {
+            "list-name": "Any popup is visible",
+            "display-text": "Any popup is visible",
+            "description": "True when at least one popup-role layer is currently visible. Example: use to disable background interactions or show a dim overlay whenever any dialog is open.",
             "params": {}
+          },
+          "TooltipIsVisible": {
+            "list-name": "A tooltip is visible",
+            "display-text": "A tooltip is visible",
+            "description": "True when any tooltip-role layer is currently visible. Example: use to suppress other hover effects while a tooltip is already showing.",
+            "params": {}
+          },
+          "LayerIsTracked": {
+            "list-name": "Layer is tracked",
+            "display-text": "Layer {0} is tracked",
+            "description": "True if the named layer has been registered with UIDirector (via Track Layer or Setup Screen/Popup/Tooltip). Use this as a safety check before performing other actions on a layer.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer name to check."
+              }
+            }
+          },
+          "OnAnyLayerStateChanged": {
+            "list-name": "On any layer state changed",
+            "display-text": "On any layer state changed",
+            "description": "Fires after any tracked layer finishes transitioning to a new state. Use LastChangedLayer and LastChangedState expressions to know which layer changed and what state it moved to. Example: update a debug HUD whenever any UI state changes.",
+            "params": {}
+          },
+          "OnLayerClosing": {
+            "list-name": "On layer closing",
+            "display-text": "On layer {0} closing",
+            "description": "Fires at the start of a layer's closing animation — before the animation completes. Use this to begin a parallel exit sequence. Example: start fading out background music as 'Pause Menu' begins to close.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to watch."
+              }
+            }
+          },
+          "OnLayerFocused": {
+            "list-name": "On layer focused",
+            "display-text": "On layer {0} focused",
+            "description": "Fires after a layer is focused (pushed onto the focus stack) and its opening animation completes. Example: start a timer or begin an entrance animation sequence after 'Settings' finishes sliding in.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to watch."
+              }
+            }
+          },
+          "OnLayerOpening": {
+            "list-name": "On layer opening",
+            "display-text": "On layer {0} opening",
+            "description": "Fires at the start of a layer's opening animation — before the animation completes. Use this to prepare content or start a parallel animation while the transition plays. Example: begin fading in background music as 'Main Menu' starts to slide in.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to watch."
+              }
+            }
+          },
+          "OnLayerStateChanged": {
+            "list-name": "On layer state changed",
+            "display-text": "On layer {0} state changed",
+            "description": "Fires after a tracked layer finishes transitioning to a new state (after the animation completes). Use this to run logic that depends on the final state of a layer. Example: after 'Game Over' becomes visible, show the retry button.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to watch for state changes."
+              }
+            }
+          },
+          "OnLayerTransitionComplete": {
+            "list-name": "On layer transition complete",
+            "display-text": "On layer {0} transition complete",
+            "description": "Fires when a layer's animation (open or close) finishes and the layer is in its final state. Use this when you need to know the exact moment a transition ends. Example: enable a button only after the screen has fully finished animating in.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to watch."
+              }
+            }
+          },
+          "OnLayerUnfocused": {
+            "list-name": "On layer unfocused",
+            "display-text": "On layer {0} unfocused",
+            "description": "Fires after a layer is popped from the focus stack and its closing animation completes. Example: stop a timer or clean up resources after 'Settings' finishes closing.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The layer to watch."
+              }
+            }
           }
         },
         "expressions": {
-          "Expression": {
-            "translated-name": "Expression",
-            "description": "Sample Expression",
+          "CurrentScreen": {
+            "translated-name": "CurrentScreen",
+            "description": "The name of the screen the player is currently on. Returns an empty string if no screen is focused. Example: set a Text object to CurrentScreen() to display which screen is active in a debug HUD.",
             "params": {}
           },
-          "Expression2": {
-            "translated-name": "Expression2",
-            "description": "Sample Expression",
+          "FocusedLayer": {
+            "translated-name": "FocusedLayer",
+            "description": "The name of the layer currently at the top of the focus stack (the active screen). Returns an empty string if no layer is focused. Example: use to log the current screen name, or to run screen-specific logic without a chain of conditions.",
             "params": {}
           },
-          "SampleExpression": {
-            "translated-name": "SampleExpression",
-            "description": "This is a sample expression",
+          "FocusStackDepth": {
+            "translated-name": "FocusStackDepth",
+            "description": "The number of layers currently on the focus stack. 0 means no screens are active. 1 means one screen is focused. Higher values mean the player has navigated deeper into nested screens. Example: use to show a breadcrumb trail or depth indicator.",
             "params": {}
+          },
+          "LayerData": {
+            "translated-name": "LayerData",
+            "description": "Retrieve a custom data value stored on a layer with Set Layer Data. Returns an empty string if the key does not exist. Example: LayerData(\"Item Detail\", \"itemId\") returns the item ID that was stored before opening the screen.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to query."
+              },
+              "key": {
+                "name": "Key",
+                "desc": "The key name to retrieve."
+              }
+            }
+          },
+          "LayerRole": {
+            "translated-name": "LayerRole",
+            "description": "The role of a tracked layer: \"normal\", \"popup\", or \"tooltip\". Returns an empty string if the layer is not tracked. Example: use to display the layer role in a debug overlay.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to query."
+              }
+            }
+          },
+          "LayerState": {
+            "translated-name": "LayerState",
+            "description": "The current state of a tracked layer: \"visible\", \"hidden\", \"disabled\", or \"focused\". Returns an empty string if the layer is not tracked. Example: use in a Text object to display the current state for debugging.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to query."
+              }
+            }
+          },
+          "PreviousLayerState": {
+            "translated-name": "PreviousLayerState",
+            "description": "The state a tracked layer was in before its most recent transition. Useful for implementing undo logic or restoring a layer after a temporary change. Example: if PreviousLayerState(\"HUD\") = \"visible\" → re-show the HUD after a cutscene.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to query."
+              }
+            }
+          },
+          "TopPopup": {
+            "translated-name": "TopPopup",
+            "description": "The name of the most recently shown popup layer. Returns an empty string if no popups are visible. Example: use to determine which dialog the player is currently interacting with.",
+            "params": {}
+          },
+          "ActiveTooltip": {
+            "translated-name": "ActiveTooltip",
+            "description": "The name of the currently visible tooltip layer. Returns an empty string if no tooltip is showing. Example: use to log which tooltip is active or to apply custom logic for specific tooltips.",
+            "params": {}
+          },
+          "LastChangedLayer": {
+            "translated-name": "LastChangedLayer",
+            "description": "The name of the most recently changed layer. Available inside On Layer State Changed and On Any Layer State Changed triggers. Example: use LastChangedLayer in the On Any Layer State Changed trigger to log state changes for all screens in one event.",
+            "params": {}
+          },
+          "LastChangedState": {
+            "translated-name": "LastChangedState",
+            "description": "The state that the most recently changed layer transitioned to (e.g., \"visible\", \"hidden\", \"disabled\", \"focused\"). Use together with LastChangedLayer inside On Any Layer State Changed. Example: if LastChangedState = \"hidden\" → play a dismiss sound.",
+            "params": {}
+          },
+          "LayerAnimDirection": {
+            "translated-name": "LayerAnimDirection",
+            "description": "The current animation direction of a layer: \"opening\" while it is animating in, \"closing\" while animating out, or an empty string when not animating. Example: play a different sound effect depending on whether a screen is opening or closing.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to query."
+              }
+            }
+          },
+          "LayerAnimProgress": {
+            "translated-name": "LayerAnimProgress",
+            "description": "The current animation progress of a layer, from 0 (start) to 1 (complete). Useful for driving custom visual effects in sync with a layer's transition. Example: set a custom overlay opacity to LayerAnimProgress(\"Settings\") while it fades in.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The tracked layer to query."
+              }
+            }
           }
         }
       }
