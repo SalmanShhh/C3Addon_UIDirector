@@ -8,5 +8,10 @@
     "added": "init Project",
     "changed": "",
     "fixed": ""
+  },
+  "0.0.1.0": {
+    "added": "Nested screens and normal Screens support",
+    "changed": "",
+    "fixed": ""
   }
 }
