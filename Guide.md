@@ -24,15 +24,66 @@
 
 ## 1. Core Concepts
 
-UIDirector manages your UI layers through a state machine. The key ideas:
+### The problem UIDirector solves
 
-- **Container layer** - a single C3 group layer that holds all your UI sublayers. UIDirector only touches what's inside this group.
-- **Tracking** - you register a sublayer by name. After that, UIDirector owns its `visible`, `interactive`, and Z-order properties.
-- **Role** - every tracked layer has a role (`normal`, `popup`, or `tooltip`) that determines how it behaves.
-- **State** - every tracked layer is always in one of four states: `visible`, `hidden`, `disabled`, or `focused`.
-- **Focus stack** - a navigation history. Pushing a screen records where you were; popping returns you.
+Managing multiple UI screens in Construct 3 without a dedicated system means writing the same types of events repeatedly, for every screen and every transition:
 
-> **Rule:** Once a layer is tracked, never use C3's built-in "Set layer visible" or "Set layer interactive" on it directly. UIDirector will override those values. Use UIDirector actions exclusively.
+- Toggle each layer's visibility and interactive state manually
+- Re-order layers so the correct one sits on top
+- Run open and close animations, and block input during them so the player cannot click through a half-visible screen
+- Record which screen was shown before so you can return to it
+- Restore every other layer's interactive state exactly as it was before a modal screen appeared
+
+The more screens a project has, the more this logic multiplies and diverges. Bugs appear when one navigation path misses a `Set layer interactive` call, or when a new screen is added and every other screen's event sheet needs updating to account for it.
+
+UIDirector replaces all of it with a declarative model. Register your layers once at layout start. After that, a single action like `Navigate to screen` or `Go back` handles visibility, interactivity, Z-order, animations, and state restoration - automatically and consistently.
+
+---
+
+### The ownership model
+
+Once a layer is tracked, **UIDirector owns it.** It controls `visible`, `interactive`, and Z-order on that layer for the rest of the layout's life. Do not set these properties directly on a tracked layer - UIDirector will override them on the next state change, making manual sets unreliable.
+
+The one exception is `Set layer input enabled`, a deliberate one-shot override. UIDirector reclaims control on the next state transition.
+
+> **Rule:** Use UIDirector actions exclusively on tracked layers. Never call `Set layer visible` or `Set layer interactive` on a layer UIDirector manages.
+
+---
+
+### The container (sandbox)
+
+UIDirector operates exclusively inside a single **container group layer** - the name set in the **UI Container Layer** property. It never touches anything outside this group:
+
+- Gameplay layers, camera layers, and backgrounds are completely unaffected.
+- You can have as many other groups and layers in your layout as you need; UIDirector ignores them.
+- The container is a purely organisational boundary at runtime - it has no visual effect of its own.
+
+---
+
+### Key concepts at a glance
+
+| Concept | What it means |
+|---|---|
+| **Tracking** | Call `Setup screen layer` (or `Track layer`) once per layer at layout start. UIDirector then owns that layer. |
+| **Role** | Every tracked layer is `normal` (navigable screen), `popup` (overlay above screens), or `tooltip` (display-only, always on top). See §4. |
+| **State** | Every tracked layer is always in one of four states: `hidden`, `visible`, `disabled`, or `focused`. See §5. |
+| **Focus stack** | A navigation history. Navigating to a screen pushes a frame; going back pops it and restores the previous state exactly. See §6. |
+
+---
+
+### Scenarios where UIDirector excels
+
+**Linear menu navigation** - Main Menu -> Settings -> Audio. Each `Go back` returns one level and restores the previous screen exactly. No manual tracking needed.
+
+**Persistent HUD alongside changing screens** - A HUD that stays visible regardless of what screen is open. Register it with `Blocks others: false` and set it to `visible` directly, bypassing the navigation history. It sits alongside screens without interfering with back-navigation.
+
+**Phase-based in-game UI** - Separate Start, Playing, and Results screens. `Navigate to screen` manages Z-order, animations, and state transitions automatically regardless of which phase transitions to which.
+
+**Modal confirmation dialogs** - A popup appears above the current screen and blocks all background input. When the player responds and the popup closes, background interactivity is automatically restored. No manual `Set layer interactive` events required.
+
+**Deep sub-navigation with a Skip Back** - Settings -> Audio -> Advanced Audio. A single `Return to screen "Settings"` instantly collapses the entire stack back to that point, regardless of how many intermediate screens exist.
+
+**Animation-safe logic** - Layers are never interactive while animating. The `On layer fully opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
 
 ---
 
@@ -168,68 +219,178 @@ Each `Go back` pops one level: Controls -> Settings -> Main Menu.
 
 ## 7. Group Layers & Nested Screens
 
-UIDirector supports two patterns for organising complex UIs with group layers (layer folders).
+UIDirector supports three layer configurations for organising your UI. Understanding each one - and when to choose it - prevents layout design mistakes that are difficult to fix later.
 
-### Pattern 1 - Track a group layer as one screen
+---
 
-A tracked layer can be a C3 group layer containing sublayers. UIDirector treats the entire group as a single unit.
+### The baseline - flat layers
+
+The simplest setup. Every tracked layer sits directly inside the container as a single flat layer with no sublayers. All UIDirector features work fully in this configuration.
 
 ```
-[UI]                    ← container
-    [Options]           ← tracked as one screen (group layer)
-        [Options - BG]
-        [Options - Objects]
-        [Options - Text]
+[UI]                   ← container
+    [Tooltip]          ← tracked: tooltip
+    [Confirm Dialog]   ← tracked: popup
+    [Pause Menu]       ← tracked: normal screen
+    [Settings]         ← tracked: normal screen
+    [HUD]              ← tracked: normal screen (non-blocking)
+    [Main Menu]        ← tracked: normal screen
 ```
 
-Register the group layer itself - the sublayers are just visual structure:
+Flat layers are the most predictable and easiest to reason about.
+
+> **Recommendation:** Start with flat layers. Only introduce group layers when you have a specific need they solve.
+
+---
+
+### Pattern 1 - Tracked group layer as one screen
+
+A tracked layer is itself a C3 group layer. Its sublayers are internal visual structure only - UIDirector treats the entire group as a single screen.
+
+```
+[UI]
+    [Options]               ← tracked as one screen (group layer)
+        [Options - BG]      ← sublayer: background art
+        [Options - Objects] ← sublayer: buttons, sliders
+        [Options - Text]    ← sublayer: labels, headings
+    [Main Menu]             ← tracked: flat normal screen
+```
+
+Register the group layer only - the sublayers are never tracked individually:
 
 ```
 Event: On start of layout
   Action: Setup screen layer -> "Options"
-  Action: Show screen -> "Options"
+  Action: Setup screen layer -> "Main Menu"
+  Action: Show screen -> "Main Menu"
 ```
 
-**How it works:**
-- `visible` and `interactive` on the group layer cascade automatically to all sublayers.
-- `opacity` (fade animation) composites over all sublayers - the whole group fades as one.
-- Slide animations (`scrollX`/`scrollY`) are applied to each sublayer individually, since scroll does not cascade from a group layer to its children. UIDirector handles this automatically.
-- Collision management (`manageCollisions: true`) reaches instances on all sublayers, not just the group layer.
+**How UIDirector handles each feature on a group layer:**
 
-### Pattern 2 - Track individual sublayers inside a nested group
+| Feature | Behaviour |
+|---|---|
+| `visible` / `interactive` | Set on the group root; cascades automatically to all sublayers via C3's own layer system. |
+| Fade animation (opacity) | Applied to the group root; all sublayers fade together as a visual composite. |
+| Slide animation (scroll) | `scrollX`/`scrollY` does NOT cascade from a group root. UIDirector applies scroll to each direct sublayer individually, producing the same visual result. |
+| Collision management | Iterates all sublayers recursively. Objects at any depth have their collisions toggled correctly. |
+| Z-order | The group moves as a unit. All sublayers move with it automatically. |
 
-Sometimes you need a group layer purely for organisation, but want to track the layers inside it as independent screens.
+**When to use Pattern 1:**
+
+- Your screen has distinct visual layers that always show and hide together: a background, an interactive content layer, and a text overlay.
+- You want objects on different sublayers to use different Z-sorting without turning each sublayer into a separately-managed screen.
+- You have many objects on one screen and want to split them across sublayers for rendering order, without that split affecting UIDirector's state management.
+
+**Recommendations:**
+
+- Keep sublayer depth to 2-4 layers per tracked group. Deeper nesting works but makes the C3 layer panel hard to navigate.
+- Name sublayers with a prefix matching the parent: `Options - BG`, `Options - Content`, `Options - Text`. This keeps the layer panel readable and makes the parent-child relationship clear at a glance.
+- Never track the internal sublayers of a Pattern 1 group individually. They are part of the screen, not separate screens.
+
+**What to avoid:**
+
+- Do not try to independently enable or disable one sublayer while the screen is open. `interactive` is set on the group root and cascades to all sublayers - you cannot selectively block input on part of the screen this way.
+- Avoid nesting sublayers more than 2 levels deep (sublayers of sublayers). UIDirector recurses through them correctly, but the layout panel becomes very difficult to manage.
+
+---
+
+### Pattern 2 - Individually tracked layers inside an organising group
+
+An untracked group layer acts purely as a folder for organisation. The layers inside it are each tracked individually as independent screens.
 
 ```
-[UI]                        ← container
-    [Debug]                 ← tracked (flat)
-    [In Game]               ← NOT tracked (organising group, unmanaged)
-        [Start Screen]      ← tracked as a normal screen
-        [Finish Screen]     ← tracked as a normal screen
-        [Playing HUD]       ← tracked as a normal screen
-    [Touch Controls]        ← tracked (flat)
+[UI]
+    [Debug]                  ← tracked: normal (non-blocking, flat)
+    [In Game]                ← NOT tracked (organising group only)
+        [Start Screen]       ← tracked: normal screen
+        [Playing HUD]        ← tracked: normal screen
+        [Finish Screen]      ← tracked: normal screen
+    [Touch Controls]         ← tracked: normal (non-blocking, flat)
 ```
 
-Register the sublayers individually - UIDirector finds them by searching recursively through the container:
+Register the individual layers - UIDirector finds them by searching recursively through the container:
 
 ```
 Event: On start of layout
   Action: Setup screen layer -> "Start Screen"
-  Action: Setup screen layer -> "Finish Screen"
   Action: Setup screen layer -> "Playing HUD"
+  Action: Setup screen layer -> "Finish Screen"
   Action: Setup screen layer -> "Debug"
   Action: Setup screen layer -> "Touch Controls"
   Action: Show screen -> "Start Screen"
 ```
 
 **How Z-order works:**
-When UIDirector needs to bring `"Start Screen"` to the front, it automatically moves the **parent group** (`"In Game"`) to the top of the container instead. A nested layer cannot be moved independently of its parent - UIDirector detects this and moves the correct ancestor.
 
-When the focus stack is popped, the parent group returns to its original Z-position.
+A sublayer cannot be moved independently of its parent group. When UIDirector needs to bring `Start Screen` to the front, it moves the parent group `In Game` to the top of the container instead. All siblings inside `In Game` come along for the move.
 
-**When to use which pattern:**
-- Use **Pattern 1** when your screen has multiple visual layers (background, content, overlays) that always show/hide together.
-- Use **Pattern 2** when you have a logical grouping of screens (e.g. "all in-game UI") but want each screen to operate independently within the focus stack.
+This has one key implication: **all layers inside the same organising group share the same Z-position relative to the rest of the container.** If you need `Start Screen` to appear above `Debug` (which is a direct container child), that works - UIDirector moves `In Game` above `Debug`. But `Start Screen` and `Playing HUD` are siblings inside the same group; their Z-order relative to each other cannot be changed by moving the group. UIDirector only manages the Z-order of container-direct-children.
+
+When the focus stack is unwound, the parent group returns to its saved Z-position automatically.
+
+**When to use Pattern 2:**
+
+- You have 3 or more screens that belong to a logical phase or section: a start screen, a playing screen, and a results screen that together form the "in-game" UI.
+- You want to keep the container's direct-child list short and organised in larger projects.
+- Each screen in the group operates independently and is navigated to individually via `Navigate to screen`.
+
+**Recommendations:**
+
+- Use this pattern for phase-based UI: `In Game` containing `Start Screen`, `Playing HUD`, `Finish Screen`. The organising group keeps the layer panel clean without affecting runtime behaviour.
+- Keep organising groups at one level deep inside the container. Nesting organising groups inside other organising groups is supported but makes Z-order reasoning significantly harder to predict.
+- Name organising groups clearly so they cannot be confused with tracked screens. A simple convention helps: tracked screens use descriptive names (`Start Screen`, `Options Menu`); organising groups use section names (`In Game`, `Menus`, `Overlays`).
+- Do not expect UIDirector to independently control the Z-order of screens within the same organising group relative to each other. Only the group's position in the container is managed.
+
+---
+
+### Pattern 3 - Hybrid
+
+A combination of both patterns: some tracked screens are themselves group layers (Pattern 1), and they live inside untracked organising groups (Pattern 2).
+
+```
+[UI]
+    [Main Menu]                 ← tracked: flat normal screen
+    [In Game]                   ← NOT tracked (organising group)
+        [HUD]                   ← tracked: flat, non-blocking
+        [Options]               ← tracked: group layer screen (Pattern 1)
+            [Options - BG]
+            [Options - Content]
+        [Pause]                 ← tracked: group layer screen (Pattern 1)
+            [Pause - BG]
+            [Pause - Buttons]
+```
+
+UIDirector handles this correctly. When `Options` needs to come to the front, the container-direct-child `In Game` is moved. The internal sublayers (`Options - BG`, `Options - Content`) animate together using the per-sublayer scroll approach.
+
+**When to use Pattern 3:**
+
+- You have distinct game phases (Pattern 2) AND each phase contains screens complex enough to need internal visual sublayer structure (Pattern 1).
+- This is appropriate for mid-to-large projects where both levels of organisation are genuinely needed.
+
+> **Caution:** Only reach for Pattern 3 when you have clear reasons for both layers of structure. The added depth increases the cognitive load of maintaining the layout and makes the layer panel harder to read. Reach for it deliberately, not as a default.
+
+---
+
+### Choosing the right pattern
+
+| Situation | Recommended approach |
+|---|---|
+| Small project, handful of screens | Flat layers only |
+| Screen needs separate BG, content, and overlay sublayers | Pattern 1 (tracked group layer) |
+| 3+ screens belong to one logical section or game phase | Pattern 2 (organising group, flat tracked children) |
+| Complex screens inside logical phases | Pattern 3 (hybrid) |
+
+---
+
+### General rules
+
+**Keep names unique across the entire container tree.** UIDirector searches the container recursively by name. If two layers at different depths share a name, only the first one found is returned. Layer names must be unique within the entire container.
+
+**Never track a layer and also track one of its sublayers.** Both would have conflicting state machines on the same layer objects. Only track the outermost group; its sublayers are unmanaged visual structure.
+
+**Organising groups (Pattern 2) should be clearly distinguishable from tracked layers.** Use consistent naming conventions to make it obvious at a glance which layers UIDirector manages and which are purely organisational folders.
+
+**Flat layers are always the safest choice.** Group layers add real organisational value but also add complexity. If a flat layer list is still manageable, stay flat.
 
 ---
 
