@@ -15,7 +15,7 @@ export const author = "SalmanShh";
 export const website = "https://www.construct.net";
 export const documentation = "https://www.construct.net";
 export const description =
-  "Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip — then open, close, and navigate between them with simple actions.";
+  "Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip - then open, close, and navigate between them with simple actions.";
 export const category = ADDON_CATEGORY.OTHER;
 
 export const hasDomside = false;
@@ -38,7 +38,7 @@ export const files = {
   cordovaResourceFiles: [],
 };
 
-// Display names for ACE categories (folder name → display name)
+// Display names for ACE categories (folder name -> display name)
 export const aceCategories = {
   Common: "Common",
   Tracking: "Layer Tracking",
@@ -87,7 +87,7 @@ export const info = {
   },
 };
 
-// Properties — declaration order is critical!
+// Properties - declaration order is critical!
 // _getInitProperties() returns them as an array by index:
 // 0: uiContainerLayer  1: defaultAnimType  2: defaultAnimDuration
 // 3: defaultAnimEasing  4: persistAcrossLayouts  5: debugMode
@@ -149,7 +149,7 @@ export const properties = [
     type: PROPERTY_TYPE.CHECK,
     id: "debugMode",
     name: "Debug Mode",
-    desc: "If enabled, UIDirector logs all operations to the browser console (F12 → Console). Useful during development — turn off before release.",
+    desc: "If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release.",
     options: { initialValue: false },
   },
 ];

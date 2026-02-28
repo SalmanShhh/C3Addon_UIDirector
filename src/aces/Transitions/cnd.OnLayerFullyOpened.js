@@ -1,8 +1,8 @@
 export const config = {
-  listName: "On layer focused",
-  displayText: "On layer {0} focused",
+  listName: "On layer fully opened",
+  displayText: "On layer {0} fully opened",
   description:
-    "Fires after a layer is focused (pushed onto the focus stack) and its opening animation completes. Example: start a timer or begin an entrance animation sequence after 'Settings' finishes sliding in.",
+    "Fires after a layer finishes its opening animation and is now fully visible as the active screen. Example: start a timer or begin an entrance sequence after 'Settings' finishes sliding in.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

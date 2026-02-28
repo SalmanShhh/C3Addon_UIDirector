@@ -1,8 +1,8 @@
 export const config = {
-  listName: "Layer manages collisions",
-  displayText: "Layer {0} manages collisions",
+  listName: "Layer syncs collisions",
+  displayText: "Layer {0} syncs collisions",
   description:
-    "True if collision management is enabled for this layer. When enabled, instance collisionsEnabled automatically mirrors the layer's interactive state.",
+    "True if collision syncing is enabled for this layer. When enabled, objects on this layer automatically have collisions turned off whenever the layer is hidden or disabled.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

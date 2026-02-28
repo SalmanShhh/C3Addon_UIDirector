@@ -4,7 +4,7 @@ import AddonTypeMap from "../../template/addonTypeMap.js";
 export default function (parentClass) {
   return class extends parentClass {
     // ─────────────────────────────────────────────────────────
-    // Constructor — data structure init only.
+    // Constructor - data structure init only.
     // Runtime/layout APIs (this.runtime) are NOT available yet.
     // ─────────────────────────────────────────────────────────
     constructor() {
@@ -31,7 +31,7 @@ export default function (parentClass) {
     }
 
     // ─────────────────────────────────────────────────────────
-    // onCreate — called by C3 after the instance is fully set up.
+    // onCreate - called by C3 after the instance is fully set up.
     // Safe to access this.runtime, layout, and layer APIs here.
     // ─────────────────────────────────────────────────────────
     onCreate() {
@@ -58,7 +58,7 @@ export default function (parentClass) {
     }
 
     // ─────────────────────────────────────────────────────────
-    // CAW framework methods — PRESERVE, do not override below.
+    // CAW framework methods - PRESERVE, do not override below.
     // ─────────────────────────────────────────────────────────
 
     _trigger(method) {
@@ -123,19 +123,57 @@ export default function (parentClass) {
 
     _resolveLayer(name) {
       if (!this._containerRef) return null;
-      // Option A — preferred if the SDK version exposes it:
+      // Option A - getLayer may do a deep search already:
       if (typeof this._containerRef.getLayer === "function") {
         return this._containerRef.getLayer(name) ?? null;
       }
-      // Option B — iterate sublayers:
-      for (const layer of this._containerRef.layers()) {
+      // Option B - recursive manual search through all descendants:
+      return this._resolveLayerInGroup(name, this._containerRef);
+    }
+
+    _resolveLayerInGroup(name, groupRef) {
+      for (const layer of this._getDirectSublayers(groupRef)) {
         if (layer.name === name) return layer;
+        const found = this._resolveLayerInGroup(name, layer);
+        if (found) return found;
       }
       return null;
     }
 
     _getEntry(name) {
       return this._layers.get(name) ?? null;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Group layer helpers
+    // ─────────────────────────────────────────────────────────
+
+    _getDirectSublayers(layerRef) {
+      const subs = [];
+      const iter = typeof layerRef.subLayers === "function"
+        ? layerRef.subLayers()
+        : typeof layerRef.layers === "function"
+          ? layerRef.layers()
+          : null;
+      if (iter) for (const s of iter) subs.push(s);
+      return subs;
+    }
+
+    _getAnimTargetLayers(layerRef) {
+      const subs = this._getDirectSublayers(layerRef);
+      return subs.length > 0 ? subs : [layerRef];
+    }
+
+    _getContainerDirectChild(layerRef) {
+      // If this layer is already a direct child of the container, return it.
+      if (this._getSublayerIndex(layerRef) !== -1) return layerRef;
+      // Walk up parent layers until we find one that is a direct child.
+      if (typeof layerRef.parentLayers === "function") {
+        for (const parent of layerRef.parentLayers()) {
+          if (this._getSublayerIndex(parent) !== -1) return parent;
+        }
+      }
+      return layerRef; // fallback
     }
 
     // ─────────────────────────────────────────────────────────
@@ -182,26 +220,42 @@ export default function (parentClass) {
     _applyAnimValue(entry, type, value) {
       switch (type) {
         case "fade":
-          entry.ref.opacity = value;
+          entry.ref.opacity = value; // opacity cascades; apply to group root only
           break;
         case "slideLeft":
         case "slideRight":
-          entry.ref.scrollX = value;
+          for (const l of this._getAnimTargetLayers(entry.ref)) {
+            const base = entry.animBaseScrolls?.get(l)?.x ?? 0;
+            l.scrollX = base + value;
+          }
           break;
         case "slideUp":
         case "slideDown":
-          entry.ref.scrollY = value;
+          for (const l of this._getAnimTargetLayers(entry.ref)) {
+            const base = entry.animBaseScrolls?.get(l)?.y ?? 0;
+            l.scrollY = base + value;
+          }
           break;
       }
     }
 
     _resetAnimProperties(entry, type) {
       switch (type) {
-        case "fade":       entry.ref.opacity = 1;  break;
+        case "fade":
+          entry.ref.opacity = 1;
+          break;
         case "slideLeft":
-        case "slideRight": entry.ref.scrollX = 0;  break;
+        case "slideRight":
+          for (const l of this._getAnimTargetLayers(entry.ref)) {
+            l.scrollX = entry.animBaseScrolls?.get(l)?.x ?? 0;
+          }
+          break;
         case "slideUp":
-        case "slideDown":  entry.ref.scrollY = 0;  break;
+        case "slideDown":
+          for (const l of this._getAnimTargetLayers(entry.ref)) {
+            l.scrollY = entry.animBaseScrolls?.get(l)?.y ?? 0;
+          }
+          break;
       }
     }
 
@@ -213,6 +267,13 @@ export default function (parentClass) {
       if (config.type === "none") {
         onComplete();
         return;
+      }
+
+      // Capture current scroll of each target layer so _applyAnimValue can use deltas.
+      const targetLayers = this._getAnimTargetLayers(entry.ref);
+      entry.animBaseScrolls = new Map();
+      for (const l of targetLayers) {
+        entry.animBaseScrolls.set(l, { x: l.scrollX, y: l.scrollY });
       }
 
       const { from, to } = this._getAnimValues(config.type, dir);
@@ -310,14 +371,15 @@ export default function (parentClass) {
     }
 
     _getAllInstancesOnLayer(layerRef) {
-      if (typeof layerRef.getAllInstances === "function") {
-        return layerRef.getAllInstances();
-      }
       const results = [];
       for (const objType of this.runtime.objects) {
         for (const inst of objType.getAllInstances()) {
           if (inst.layer === layerRef) results.push(inst);
         }
+      }
+      // Recurse into sublayers for group layers
+      for (const sub of this._getDirectSublayers(layerRef)) {
+        results.push(...this._getAllInstancesOnLayer(sub));
       }
       return results;
     }
@@ -349,7 +411,8 @@ export default function (parentClass) {
       let max = 0;
       for (const entry of this._layers.values()) {
         if (entry.role === "normal" && entry.ref) {
-          max = Math.max(max, this._getSublayerIndex(entry.ref));
+          const ancestor = this._getContainerDirectChild(entry.ref);
+          max = Math.max(max, this._getSublayerIndex(ancestor));
         }
       }
       return max;
@@ -362,7 +425,10 @@ export default function (parentClass) {
       let max = 0;
       for (const name of this._popupStack) {
         const entry = this._getEntry(name);
-        if (entry?.ref) max = Math.max(max, this._getSublayerIndex(entry.ref));
+        if (entry?.ref) {
+          const ancestor = this._getContainerDirectChild(entry.ref);
+          max = Math.max(max, this._getSublayerIndex(ancestor));
+        }
       }
       return max;
     }
@@ -376,7 +442,7 @@ export default function (parentClass) {
         this._containerRef.moveLayerToIndex(ref, targetIndex);
         return;
       }
-      this._log("WARNING: moveLayerToIndex not available — Z-order reordering disabled");
+      this._log("WARNING: moveLayerToIndex not available - Z-order reordering disabled");
     }
 
     // ─────────────────────────────────────────────────────────
@@ -439,7 +505,7 @@ export default function (parentClass) {
         animType: null, animDuration: null, animEasing: null,
         animating: false, animDir: "", animProgress: 0,
         animElapsed: 0, animFrom: 0, animTo: 0,
-        animOnComplete: null, pendingState: null,
+        animOnComplete: null, pendingState: null, animBaseScrolls: null,
       };
       this._layers.set(layerName, entry);
       if (manageCollisions) {
@@ -544,12 +610,13 @@ export default function (parentClass) {
       }
 
       const snapshot  = this._snapshotInteractive();
-      const savedIndex = this._getSublayerIndex(entry.ref);
+      const containerAncestor = this._getContainerDirectChild(entry.ref);
+      const savedIndex = this._getSublayerIndex(containerAncestor);
 
       this._focusStack.push({ layerName, savedIndex, interactiveSnapshot: snapshot });
 
       const topNormal = this._getTopNormalSublayerIndex();
-      this._moveSublayerToIndex(entry.ref, topNormal);
+      this._moveSublayerToIndex(containerAncestor, topNormal);
 
       if (entry.isModal) {
         for (const e of this._layers.values()) {
@@ -569,7 +636,7 @@ export default function (parentClass) {
 
       this._startAnim(entry, "opening", () => {
         this._applyState(entry, "focused");
-        this._trigger("OnLayerFocused");
+        this._trigger("OnLayerFullyOpened");
         this._trigger("OnLayerStateChanged");
         this._trigger("OnAnyLayerStateChanged");
       });
@@ -590,7 +657,8 @@ export default function (parentClass) {
       this._lastChangedLayer   = frame.layerName;
 
       if (entry?.ref) {
-        this._moveSublayerToIndex(entry.ref, frame.savedIndex);
+        const containerAncestor = this._getContainerDirectChild(entry.ref);
+        this._moveSublayerToIndex(containerAncestor, frame.savedIndex);
         entry.ref.interactive = false;
         this._setLayerCollisions(entry, false);
       }
@@ -600,7 +668,7 @@ export default function (parentClass) {
       this._startAnim(entry, "closing", () => {
         if (entry) this._applyState(entry, entry.prevState);
         this._restoreInteractiveSnapshot(frame.interactiveSnapshot);
-        this._trigger("OnLayerUnfocused");
+        this._trigger("OnLayerFullyClosed");
         this._trigger("OnLayerStateChanged");
         this._trigger("OnAnyLayerStateChanged");
       });
@@ -630,7 +698,7 @@ export default function (parentClass) {
       if (this._popupStack.includes(layerName)) return;
 
       const targetIndex = this._getTopPopupSublayerIndex();
-      this._moveSublayerToIndex(entry.ref, targetIndex);
+      this._moveSublayerToIndex(this._getContainerDirectChild(entry.ref), targetIndex);
 
       entry.prevState = entry.state;
       this._popupStack.push(layerName);
@@ -681,7 +749,7 @@ export default function (parentClass) {
       const entry = this._getEntry(layerName);
       if (!entry || entry.role !== "tooltip") return;
 
-      this._moveSublayerToIndex(entry.ref, this._getContainerTopIndex());
+      this._moveSublayerToIndex(this._getContainerDirectChild(entry.ref), this._getContainerTopIndex());
 
       entry.ref.visible     = true;
       entry.ref.interactive = false;

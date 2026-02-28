@@ -1,8 +1,8 @@
 export const config = {
-  listName: "Layer is focused",
-  displayText: "Layer {0} is focused",
+  listName: "Screen is the active screen",
+  displayText: "Screen {0} is the active screen",
   description:
-    "True if the named layer is currently at the top of the focus stack (i.e., it is the active screen). Example: only show the options for 'Settings' while it is focused.",
+    "True if the named screen is currently the topmost active screen. Example: only show the save button while 'Settings' is the active screen.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

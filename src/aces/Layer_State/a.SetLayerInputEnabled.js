@@ -1,8 +1,8 @@
 export const config = {
-  listName: "Set layer interactable",
-  displayText: "Set layer {0} interactable: {1}",
+  listName: "Set layer input enabled",
+  displayText: "Set layer {0} input enabled: {1}",
   description:
-    "Manually override a layer's interactive property. UIDirector will not override this until the next state change. Use sparingly — prefer Set Layer State for normal state management. Example: temporarily disable a layer's buttons while an animation plays.",
+    "Manually turn a layer's input on or off. UIDirector will not override this until the next state change. Use sparingly - prefer Set Layer State for normal state management. Example: temporarily disable a layer's buttons while an animation plays.",
   isAsync: false,
   highlight: false,
   deprecated: false,
@@ -16,7 +16,7 @@ export const config = {
     },
     {
       id: "enable",
-      name: "Interactable",
+      name: "Enabled",
       desc: "True = layer receives pointer/touch input. False = layer ignores input.",
       type: "boolean",
       initialValue: "true",

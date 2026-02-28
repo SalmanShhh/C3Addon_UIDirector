@@ -1,8 +1,8 @@
 export const config = {
-  listName: "Layer is modal",
-  displayText: "Layer {0} is modal",
+  listName: "Layer blocks other screens",
+  displayText: "Layer {0} blocks other screens",
   description:
-    "True if the layer is configured as modal. A modal layer, when focused, disables input on all other normal layers. Example: use to decide whether to show a dimmed overlay behind a dialog.",
+    "True if this screen is set to block all others when it is active - meaning only it can receive input while open. Example: use to decide whether to show a dimmed overlay behind a dialog.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

@@ -1,8 +1,8 @@
 export const config = {
-  listName: "On layer unfocused",
-  displayText: "On layer {0} unfocused",
+  listName: "On layer fully closed",
+  displayText: "On layer {0} fully closed",
   description:
-    "Fires after a layer is popped from the focus stack and its closing animation completes. Example: stop a timer or clean up resources after 'Settings' finishes closing.",
+    "Fires after a layer finishes its closing animation and is no longer the active screen. Example: stop a timer or clean up resources after 'Settings' finishes closing.",
   isTrigger: true,
   highlight: false,
   deprecated: false,
