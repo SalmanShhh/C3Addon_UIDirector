@@ -58,6 +58,28 @@ UIDirector operates exclusively inside a single **container group layer** - the 
 - You can have as many other groups and layers in your layout as you need; UIDirector ignores them.
 - The container is a purely organisational boundary at runtime - it has no visual effect of its own.
 
+This container-based workflow is a natural fit for how Construct 3 structures projects. All your UI lives in one place, isolated from gameplay, easy to find, and straightforward to hand off to UIDirector.
+
+**Combining the container with C3's Global Layers**
+
+The container workflow becomes significantly more powerful when paired with Construct 3's built-in **Global Layers** feature. In C3, marking a layer as Global in the layer properties panel makes that layer - and all its sublayers - persist across layout changes. The layer object is never destroyed or recreated when the game switches from one layout to another.
+
+This pairs directly with UIDirector's **Persist Across Layouts** property:
+
+- **C3 Global Layers** keeps the actual layer objects alive and in their current visual state during a layout transition. The player sees no flash, no disappearance, no reset.
+- **Persist Across Layouts** keeps UIDirector's internal state - the registered layers, the focus stack, and each layer's current state - intact across the same transition.
+
+Together, they give you a UI that is completely seamless across level changes. The HUD stays on screen. The navigation history is unchanged. The current active screen remains active. Going from Level 1 to Level 2 is invisible from the UI's perspective.
+
+**Recommended container setup:**
+
+1. Name the container with a `!` prefix - for example `!UI`. The `!` causes it to sort to the top of the layer panel alphabetically, making it immediately identifiable as the persistent UI container and visually separating it from gameplay layers.
+2. In C3's layer panel, open the container layer's properties and enable **Global**.
+3. Enable **Persist Across Layouts** in UIDirector's plugin properties.
+4. Register your layers once - either in the global event sheet or in the first layout's `On start of layout` behind a "first run" boolean. Because the layers are global and UIDirector's state persists, registration only needs to happen once per game session, not once per layout.
+
+With this setup, layout changes become transparent to the player. The game world changes; the UI does not.
+
 ---
 
 ### Key concepts at a glance
@@ -95,21 +117,23 @@ Install `salmanshh_uidirector.c3addon` via the Construct 3 addon manager.
 
 ### Step 2 - Create your layer structure
 
-In the C3 layer editor, create a **group layer** (e.g. `UI`) and put all your UI sublayers inside it:
+In the C3 layer editor, create a **group layer** and put all your UI sublayers inside it. Name it with a `!` prefix (e.g. `!UI`) so it sorts to the top of the layer panel and is immediately recognisable as the UI container:
 
 ```
-[Background]         ← untracked game layer, UIDirector ignores this
-[UI]                 ← group layer - this is your container
+[!UI]                ← group layer - this is your container (Global, sorts to top)
     [Tooltip]        ← will be registered as a tooltip
     [Confirm Dialog] ← will be registered as a popup
     [Pause Menu]     ← will be registered as a normal screen
     [Inventory]      ← will be registered as a normal screen
-    [HUD]            ← will be registered as a normal screen (non-modal)
+    [HUD]            ← will be registered as a normal screen (non-blocking)
     [Main Menu]      ← will be registered as a normal screen
+[Background]         ← untracked game layer, UIDirector ignores this
 [Game World]         ← untracked, UIDirector ignores this
 ```
 
-The order in the layer editor does not matter - UIDirector reorders sublayers automatically at runtime based on role.
+The order of sublayers inside the container does not matter - UIDirector reorders them automatically at runtime.
+
+> **Recommended:** In C3's layer panel, open `!UI`'s layer properties and enable **Global**. This makes the container and all its sublayers persist across layout changes. Paired with UIDirector's **Persist Across Layouts** property, your entire UI state - screens, navigation history, popups - carries over seamlessly when the game moves to a new layout. See §1 for a full explanation of how this works.
 
 ### Step 3 - Add the UIDirector object
 
@@ -144,7 +168,7 @@ Configure these in the Properties Bar when the UIDirector object is selected.
 | **Default Anim Type** | Combo | `fade` | Animation used when no per-layer override is set. Options: `fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `none`. |
 | **Default Anim Duration** | Integer | `200` | How long transitions take in milliseconds. |
 | **Default Anim Easing** | Combo | `easeOut` | Easing curve. Options: `linear`, `easeIn`, `easeOut`, `easeInOut`. |
-| **Persist Across Layouts** | Checkbox | Off | When enabled, the focus stack and layer states survive a C3 layout change. |
+| **Persist Across Layouts** | Checkbox | Off | When enabled, the focus stack, registered layers, and all layer states survive a C3 layout change. Works best when the container layer is also marked **Global** in C3's layer properties - without that, the layer objects are recreated on the new layout and UIDirector must re-resolve them. |
 | **Debug Mode** | Checkbox | Off | Logs all state changes and animations to the browser console. Useful during development. |
 
 ---
