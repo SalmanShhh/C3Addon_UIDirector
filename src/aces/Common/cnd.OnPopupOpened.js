@@ -2,7 +2,7 @@ export const config = {
   listName: "On popup opened",
   displayText: "On popup {0} opened",
   description:
-    "Fires when a popup becomes visible. Use this to react when a dialog appears. Example: dim the background or play a sound when 'Confirm Quit' opens.",
+    "Triggers when a popup opens. Use to play a sound or dim the background.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

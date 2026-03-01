@@ -1,7 +1,7 @@
 export const config = {
   returnType: "number",
   description:
-    "The current animation progress of a layer, from 0 (start) to 1 (complete). Useful for driving custom visual effects in sync with a layer's transition. Example: set a custom overlay opacity to LayerAnimProgress(\"Settings\") while it fades in.",
+    "Returns the animation progress from 0 to 1. Use to sync custom effects like fading music with a screen's transition.",
   highlight: false,
   deprecated: false,
   params: [

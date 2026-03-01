@@ -2,7 +2,7 @@ export const config = {
   listName: "Show tooltip",
   displayText: "Show tooltip {0}",
   description:
-    "Show a tooltip or hint to the player. Tooltips are display-only - they can never be clicked. Only one tooltip can be visible at a time; showing a new one automatically hides the previous. Example: mouse hovers over a sword icon -> ShowTip(\"Sword Info\").",
+    "Shows a tooltip. Only one can be visible at a time. Use when the mouse hovers over a button or item.",
   isAsync: false,
   highlight: false,
   deprecated: false,

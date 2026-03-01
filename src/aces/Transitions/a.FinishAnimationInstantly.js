@@ -2,7 +2,7 @@ export const config = {
   listName: "Finish animation instantly",
   displayText: "Finish animation instantly for layer {0}",
   description:
-    "Immediately snap a layer to the end of its current animation, skipping the visual transition. Use this to skip animations or apply the final state right away. Example: on a skip-cutscene button press, call Finish animation instantly for all layers to snap them to their final states.",
+    "Skips a layer's current animation and jumps to the end. Use for skip buttons or when you need a screen ready immediately.",
   isAsync: false,
   highlight: false,
   deprecated: false,

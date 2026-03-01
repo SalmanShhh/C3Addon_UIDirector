@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    'The state that the most recently changed layer transitioned to (e.g., "visible", "hidden", "disabled", "focused"). Use together with LastChangedLayer inside On Any Layer State Changed. Example: if LastChangedState = "hidden" -> play a dismiss sound.',
+    "Returns the new state of the most recently changed layer. Use inside state-changed triggers to react differently to 'hidden' vs 'visible'.",
   highlight: false,
   deprecated: false,
   params: [],

@@ -2,7 +2,7 @@ export const config = {
   listName: "Layer is visible",
   displayText: "Layer {0} is visible",
   description:
-    "True if the layer's visible property is currently enabled. Note: a Disabled-state layer is visible but not interactive - this condition returns true for it. Example: use to check if a HUD layer is currently showing.",
+    "True if the layer is on screen (includes disabled layers). Use to check if a HUD or panel is currently showing.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

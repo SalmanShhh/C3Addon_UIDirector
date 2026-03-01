@@ -2,7 +2,7 @@ export const config = {
   listName: "Set layer state",
   displayText: "Set layer {0} to {1}",
   description:
-    "Transition a tracked layer to a specific state, playing the configured animation. Visible = shown and interactive. Hidden = invisible and non-interactive. Disabled = visible but non-interactive (greyed-out effect). Example: set 'HUD' to Disabled while a cutscene plays.",
+    "Changes a layer to visible, hidden, or disabled with an animation. Use to show or hide HUD elements or grey out a panel.",
   isAsync: false,
   highlight: false,
   deprecated: false,

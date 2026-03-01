@@ -2,7 +2,7 @@ export const config = {
   listName: "Layer is animating",
   displayText: "Layer {0} is animating",
   description:
-    "True while a transition animation is in progress on the layer. Layers are never interactive while animating. Example: disable a Back button while the current screen is still sliding in.",
+    "True while a layer is playing its transition animation. Use to disable buttons until the screen finishes sliding in.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

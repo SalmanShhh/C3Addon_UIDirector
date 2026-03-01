@@ -2,7 +2,7 @@ export const config = {
   listName: "Hide tooltip",
   displayText: "Hide tooltip",
   description:
-    "Hide whichever tooltip is currently visible. Example: mouse leaves a button -> HideTip() dismisses the hint.",
+    "Hides the current tooltip. Use when the mouse leaves a button or item.",
   isAsync: false,
   highlight: false,
   deprecated: false,

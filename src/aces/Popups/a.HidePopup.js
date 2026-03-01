@@ -2,7 +2,7 @@ export const config = {
   listName: "Hide popup",
   displayText: "Hide popup {0}",
   description:
-    "Hide a popup-role layer. Plays the closing animation. The screen behind it is unaffected. Example: dismiss the 'Confirm Quit' dialog when the player clicks Cancel.",
+    "Closes a specific popup with its closing animation. Use for Cancel or Close buttons on dialogs.",
   isAsync: false,
   highlight: false,
   deprecated: false,

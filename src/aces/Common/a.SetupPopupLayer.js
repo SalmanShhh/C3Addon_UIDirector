@@ -2,7 +2,7 @@ export const config = {
   listName: "Setup popup layer",
   displayText: "Setup popup layer {0}",
   description:
-    "Register a layer as a popup. Popups appear above all screens and do not affect back-navigation. Example: setup 'Confirm Quit', 'Error Dialog', or 'Level Complete' as popups.",
+    "Registers a layer as a popup. Call once at the start for each popup layer like 'Confirm Quit' or 'Error Dialog'.",
   isAsync: false,
   highlight: false,
   deprecated: false,

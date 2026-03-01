@@ -2,7 +2,7 @@ export const config = {
   listName: "Can go back",
   displayText: "Can go back",
   description:
-    "True when there is a previous screen to return to. Use this to show or hide a Back button. Example: if CanGoBack -> set Back button visible, else set it invisible.",
+    "True when there is a previous screen to go back to. Use to show or hide a Back button.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

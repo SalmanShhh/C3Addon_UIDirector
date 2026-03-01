@@ -2,7 +2,7 @@ export const config = {
   listName: "Screen is the active screen",
   displayText: "Screen {0} is the active screen",
   description:
-    "True if the named screen is currently the topmost active screen. Example: only show the save button while 'Settings' is the active screen.",
+    "True if a screen is the currently active one. Use to show buttons that only appear on a specific screen.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

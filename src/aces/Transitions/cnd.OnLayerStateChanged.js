@@ -2,7 +2,7 @@ export const config = {
   listName: "On layer state changed",
   displayText: "On layer {0} state changed",
   description:
-    "Fires after a tracked layer finishes transitioning to a new state (after the animation completes). Use this to run logic that depends on the final state of a layer. Example: after 'Game Over' becomes visible, show the retry button.",
+    "Triggers after a specific layer finishes changing state. Use to run logic that depends on the final state, like showing a retry button after Game Over appears.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

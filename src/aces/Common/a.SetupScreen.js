@@ -2,7 +2,7 @@ export const config = {
   listName: "Setup screen layer",
   displayText: "Setup screen layer {0}",
   description:
-    "Register a layer as a navigable screen. Call this at layout start for every UI screen you want to manage. Example: setup 'Main Menu', 'Settings', and 'Game Over' as screens so you can show/hide them with ShowScreen and GoBack.",
+    "Registers a layer as a screen. Call once at the start for each UI screen like 'Main Menu' or 'Settings'.",
   isAsync: false,
   highlight: false,
   deprecated: false,

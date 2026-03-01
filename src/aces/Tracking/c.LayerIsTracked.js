@@ -2,7 +2,7 @@ export const config = {
   listName: "Layer is tracked",
   displayText: "Layer {0} is tracked",
   description:
-    "True if the named layer has been registered with UIDirector (via Track Layer or Setup Screen/Popup/Tooltip). Use this as a safety check before performing other actions on a layer.",
+    "True if UIDirector is managing this layer. Use as a safety check before calling other actions on it.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

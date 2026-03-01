@@ -2,7 +2,7 @@ export const config = {
   listName: "Open popup",
   displayText: "Open popup {0}",
   description:
-    "Show a popup window above the current screen. The screen behind it remains visible but is blocked from input. Example: player clicks Quit -> OpenPopup(\"Confirm Quit\"). Multiple popups can be open at once.",
+    "Opens a popup above the current screen. Use for confirmation dialogs, rewards, or alerts.",
   isAsync: false,
   highlight: false,
   deprecated: false,

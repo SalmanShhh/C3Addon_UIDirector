@@ -2,7 +2,7 @@ export const config = {
   listName: "Return to previous screen",
   displayText: "Return to previous screen",
   description:
-    "Close the current screen and return to the one before it. Restores the previous screen's original Z-position and interactive states exactly as they were. Plays the closing animation on the screen being dismissed. Example: the player presses Back in Settings -> returns them to Main Menu.",
+    "Closes the current screen and goes back to the previous one. Use for Back buttons in sub-menus.",
   isAsync: false,
   highlight: false,
   deprecated: false,

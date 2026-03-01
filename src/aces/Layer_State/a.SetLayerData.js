@@ -2,7 +2,7 @@ export const config = {
   listName: "Set layer data",
   displayText: "Set layer {0} data [{1}] = {2}",
   description:
-    "Store an arbitrary string value on a tracked layer under a named key. Retrieve it later with the Layer Data expression. Example: before showing 'Item Detail', set its data \"itemId\" = \"sword_01\" so the screen knows what to display.",
+    "Stores a value on a layer by key name. Use to pass data like an item ID to a detail screen before showing it.",
   isAsync: false,
   highlight: false,
   deprecated: false,

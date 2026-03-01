@@ -2,7 +2,7 @@ export const config = {
   listName: "Go back",
   displayText: "Go back",
   description:
-    "Return to the previous screen, like pressing a Back button. UIDirector automatically restores the previous screen's position and interactive state. Example: player presses Escape in Settings -> GoBack() returns them to the Main Menu.",
+    "Returns to the previous screen, like a Back button. Use for Escape key or back arrows.",
   isAsync: false,
   highlight: false,
   deprecated: false,

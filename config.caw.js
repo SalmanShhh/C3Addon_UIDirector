@@ -91,6 +91,7 @@ export const info = {
 // _getInitProperties() returns them as an array by index:
 // 0: uiContainerLayer  1: defaultAnimType  2: defaultAnimDuration
 // 3: defaultAnimEasing  4: persistAcrossLayouts  5: debugMode
+// 6: dimLayer  7: dimOpacity
 export const properties = [
   {
     type: PROPERTY_TYPE.TEXT,
@@ -151,5 +152,19 @@ export const properties = [
     name: "Debug Mode",
     desc: "If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release.",
     options: { initialValue: false },
+  },
+  {
+    type: PROPERTY_TYPE.TEXT,
+    id: "dimLayer",
+    name: "Dim Layer",
+    desc: "Optional. The name of a layer inside your UI container to use as a dim/scrim overlay. UIDirector will show this layer at the set opacity whenever a modal screen or popup is active, and hide it when none are. Leave blank to disable.",
+    options: { initialValue: "" },
+  },
+  {
+    type: PROPERTY_TYPE.PERCENT,
+    id: "dimOpacity",
+    name: "Dim Opacity",
+    desc: "The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent).",
+    options: { initialValue: 0.5 },
   },
 ];

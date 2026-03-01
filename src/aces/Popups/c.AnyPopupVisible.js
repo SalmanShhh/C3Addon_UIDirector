@@ -2,7 +2,7 @@ export const config = {
   listName: "Any popup is visible",
   displayText: "Any popup is visible",
   description:
-    "True when at least one popup-role layer is currently visible. Example: use to disable background interactions or show a dim overlay whenever any dialog is open.",
+    "True when at least one popup is open. Use to dim the background or block input while a dialog is showing.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

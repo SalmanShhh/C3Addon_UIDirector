@@ -15,6 +15,7 @@ export default function (parentClass) {
       // Index order MUST match the declaration order in config.caw.js:
       // 0:uiContainerLayer 1:defaultAnimType 2:defaultAnimDuration
       // 3:defaultAnimEasing 4:persistAcrossLayouts 5:debugMode
+      // 6:dimLayer 7:dimOpacity
       const props = this._getInitProperties();
       if (props) {
         this._props = {
@@ -24,6 +25,8 @@ export default function (parentClass) {
           defaultAnimEasing:   props[3],
           persistAcrossLayouts: props[4],
           debugMode:           props[5],
+          dimLayer:            props[6],
+          dimOpacity:          props[7],
         };
       } else {
         this._props = {};
@@ -37,6 +40,7 @@ export default function (parentClass) {
     onCreate() {
       this._debug              = this._getProperty("debugMode");
       this._containerRef       = null;
+      this._dimLayerRef        = null;
       this._layers             = new Map();
       this._focusStack         = [];
       this._popupStack         = [];
@@ -145,6 +149,38 @@ export default function (parentClass) {
     }
 
     // ─────────────────────────────────────────────────────────
+    // Dim layer helpers
+    // ─────────────────────────────────────────────────────────
+
+    _resolveDimLayer() {
+      if (this._dimLayerRef) return this._dimLayerRef;
+      const name = this._getProperty("dimLayer");
+      if (!name || name === "") return null;
+      const ref = this._resolveLayer(name);
+      if (ref) {
+        this._dimLayerRef = ref;
+        ref.visible     = false;
+        ref.interactive = false;
+        ref.opacity     = 1;
+      }
+      return this._dimLayerRef ?? null;
+    }
+
+    _updateDimLayer() {
+      const dimRef = this._resolveDimLayer();
+      if (!dimRef) return;
+
+      const hasPopup = this._popupStack.length > 0;
+      const topFrame = this._focusStack.at(-1);
+      const topEntry = topFrame ? this._getEntry(topFrame.layerName) : null;
+      const hasFocusedModal = topEntry?.isModal === true;
+
+      const shouldDim = hasPopup || hasFocusedModal;
+      dimRef.visible  = shouldDim;
+      dimRef.opacity  = shouldDim ? (this._getProperty("dimOpacity") ?? 0.5) : 1;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // Group layer helpers
     // ─────────────────────────────────────────────────────────
 
@@ -179,6 +215,16 @@ export default function (parentClass) {
     // ─────────────────────────────────────────────────────────
     // Animation helpers
     // ─────────────────────────────────────────────────────────
+
+    _mirrorAnimType(type) {
+      switch (type) {
+        case "slideLeft":  return "slideRight";
+        case "slideRight": return "slideLeft";
+        case "slideUp":    return "slideDown";
+        case "slideDown":  return "slideUp";
+        default:           return type;
+      }
+    }
 
     _getAnimConfig(entry) {
       return {
@@ -259,12 +305,19 @@ export default function (parentClass) {
       }
     }
 
-    _startAnim(entry, dir, onComplete) {
+    _startAnim(entry, dir, onComplete, isBackNav = false) {
       const config = this._getAnimConfig(entry);
 
       if (entry.animating) this._completeAnim(entry);
 
-      if (config.type === "none") {
+      // Compute effective animation type (mirrored for back-navigation if toggled)
+      let effectiveType = config.type;
+      if (isBackNav && entry.mirrorOnBack && dir === "closing") {
+        effectiveType = this._mirrorAnimType(effectiveType);
+      }
+      entry.animEffectiveType = effectiveType;
+
+      if (effectiveType === "none") {
         onComplete();
         return;
       }
@@ -276,7 +329,7 @@ export default function (parentClass) {
         entry.animBaseScrolls.set(l, { x: l.scrollX, y: l.scrollY });
       }
 
-      const { from, to } = this._getAnimValues(config.type, dir);
+      const { from, to } = this._getAnimValues(effectiveType, dir);
 
       entry.animating     = true;
       entry.animDir       = dir;
@@ -290,15 +343,16 @@ export default function (parentClass) {
       entry.ref.interactive = false;
       this._setLayerCollisions(entry, false);
 
-      this._applyAnimValue(entry, config.type, from);
+      this._applyAnimValue(entry, effectiveType, from);
       this._animatingLayers.add(entry.name);
       this._log(`Anim start: ${entry.name} ${dir}`);
     }
 
     _completeAnim(entry) {
       const config = this._getAnimConfig(entry);
-      this._applyAnimValue(entry, config.type, entry.animTo);
-      this._resetAnimProperties(entry, config.type);
+      const effectiveType = entry.animEffectiveType ?? config.type;
+      this._applyAnimValue(entry, effectiveType, entry.animTo);
+      this._resetAnimProperties(entry, effectiveType);
 
       entry.animating    = false;
       entry.animDir      = "";
@@ -315,8 +369,9 @@ export default function (parentClass) {
 
     _tickAnimations(dt) {
       for (const name of this._animatingLayers) {
-        const entry  = this._getEntry(name);
-        const config = this._getAnimConfig(entry);
+        const entry         = this._getEntry(name);
+        const config        = this._getAnimConfig(entry);
+        const effectiveType = entry.animEffectiveType ?? config.type;
 
         entry.animElapsed += dt;
         const t      = Math.min(entry.animElapsed / config.duration, 1);
@@ -324,7 +379,7 @@ export default function (parentClass) {
         const value  = entry.animFrom + (entry.animTo - entry.animFrom) * easedT;
 
         entry.animProgress = t;
-        this._applyAnimValue(entry, config.type, value);
+        this._applyAnimValue(entry, effectiveType, value);
 
         if (t >= 1) this._completeAnim(entry);
       }
@@ -502,10 +557,12 @@ export default function (parentClass) {
         role, state: "visible", prevState: "visible",
         isModal, manageCollisions,
         customData: new Map(),
+        mirrorOnBack: false, dismissTimer: null,
         animType: null, animDuration: null, animEasing: null,
         animating: false, animDir: "", animProgress: 0,
         animElapsed: 0, animFrom: 0, animTo: 0,
-        animOnComplete: null, pendingState: null, animBaseScrolls: null,
+        animOnComplete: null, pendingState: null,
+        animBaseScrolls: null, animEffectiveType: null,
       };
       this._layers.set(layerName, entry);
       if (manageCollisions) {
@@ -515,6 +572,10 @@ export default function (parentClass) {
     }
 
     _actUntrackLayer(layerName) {
+      const entry = this._getEntry(layerName);
+      if (entry?.dismissTimer !== null) {
+        clearTimeout(entry.dismissTimer);
+      }
       this._focusStack = this._focusStack.filter(f => f.layerName !== layerName);
       this._popupStack = this._popupStack.filter(n => n !== layerName);
       if (this._activeTooltip === layerName) this._activeTooltip = null;
@@ -522,6 +583,9 @@ export default function (parentClass) {
     }
 
     _actUntrackAllLayers() {
+      for (const entry of this._layers.values()) {
+        if (entry.dismissTimer !== null) clearTimeout(entry.dismissTimer);
+      }
       this._layers.clear();
       this._focusStack = [];
       this._popupStack = [];
@@ -571,12 +635,13 @@ export default function (parentClass) {
       this._log(`Set layer ${layerName} modal: ${isModal}`);
     }
 
-    _actSetLayerAnimation(layerName, type, duration, easing) {
+    _actSetLayerAnimation(layerName, type, duration, easing, mirrorOnBack = false) {
       const entry = this._getEntry(layerName);
       if (!entry) return;
       entry.animType     = type;
       entry.animDuration = duration;
       entry.animEasing   = easing;
+      entry.mirrorOnBack = mirrorOnBack;
     }
 
     _actSetLayerCollisions(layerName, enabled) {
@@ -633,6 +698,7 @@ export default function (parentClass) {
       this._lastChangedState   = "focused";
 
       this._trigger("OnLayerOpening");
+      this._updateDimLayer();
 
       this._startAnim(entry, "opening", () => {
         this._applyState(entry, "focused");
@@ -664,6 +730,7 @@ export default function (parentClass) {
       }
 
       this._trigger("OnLayerClosing");
+      this._updateDimLayer();
 
       this._startAnim(entry, "closing", () => {
         if (entry) this._applyState(entry, entry.prevState);
@@ -671,7 +738,7 @@ export default function (parentClass) {
         this._trigger("OnLayerFullyClosed");
         this._trigger("OnLayerStateChanged");
         this._trigger("OnAnyLayerStateChanged");
-      });
+      }, true /* isBackNav */);
 
       this._log(`Popped ${frame.layerName}. Stack depth: ${this._focusStack.length}`);
     }
@@ -707,6 +774,7 @@ export default function (parentClass) {
       this._lastChangedState = "visible";
 
       this._trigger("OnLayerOpening");
+      this._updateDimLayer();
 
       this._startAnim(entry, "opening", () => {
         entry.ref.visible     = true;
@@ -722,6 +790,12 @@ export default function (parentClass) {
       const entry = this._getEntry(layerName);
       if (!entry || entry.role !== "popup") return;
 
+      // Cancel any scheduled auto-dismiss
+      if (entry.dismissTimer !== null) {
+        clearTimeout(entry.dismissTimer);
+        entry.dismissTimer = null;
+      }
+
       entry.ref.interactive = false;
       this._setLayerCollisions(entry, false);
       entry.pendingState = "hidden";
@@ -730,12 +804,14 @@ export default function (parentClass) {
       this._lastChangedState = "hidden";
 
       this._trigger("OnLayerClosing");
+      this._updateDimLayer();
 
       this._startAnim(entry, "closing", () => {
         entry.ref.visible = false;
         entry.state       = "hidden";
         entry.prevState   = "visible";
         this._popupStack  = this._popupStack.filter(n => n !== layerName);
+        this._updateDimLayer();
         this._trigger("OnLayerStateChanged");
         this._trigger("OnAnyLayerStateChanged");
       });
@@ -785,6 +861,74 @@ export default function (parentClass) {
       if (this._activeTooltip !== null) this._actHideTooltip(this._activeTooltip);
     }
 
+    _actReplaceScreen(layerName) {
+      // Silently replace the current top screen without adding to history.
+      if (this._focusStack.length > 0) {
+        const frame = this._focusStack.pop();
+        const old   = this._getEntry(frame.layerName);
+        if (old?.ref) {
+          const ancestor = this._getContainerDirectChild(old.ref);
+          this._moveSublayerToIndex(ancestor, frame.savedIndex);
+          this._applyState(old, old.prevState ?? "hidden");
+        }
+      }
+      this._actFocusLayer(layerName);
+    }
+
+    _actNavigateToScreenWithData(layerName, key, value) {
+      this._actSetLayerData(layerName, key, value);
+      this._actFocusLayer(layerName);
+    }
+
+    _actShowPopupFor(layerName, durationMs) {
+      this._actShowPopup(layerName);
+      const entry = this._getEntry(layerName);
+      if (!entry) return;
+      if (entry.dismissTimer !== null) clearTimeout(entry.dismissTimer);
+      entry.dismissTimer = setTimeout(() => {
+        entry.dismissTimer = null;
+        this._actHidePopup(layerName);
+      }, durationMs);
+    }
+
+    _actNavigateBackToRoot() {
+      if (this._focusStack.length <= 1) return;
+
+      // Silently close all screens above the root without animation.
+      while (this._focusStack.length > 1) {
+        const frame = this._focusStack.pop();
+        const entry = this._getEntry(frame.layerName);
+        if (entry?.ref) {
+          if (entry.animating) this._completeAnim(entry);
+          const ancestor = this._getContainerDirectChild(entry.ref);
+          this._moveSublayerToIndex(ancestor, frame.savedIndex);
+          this._applyState(entry, entry.prevState ?? "hidden");
+        }
+        this._lastUnfocusedLayer = frame.layerName;
+        this._lastChangedLayer   = frame.layerName;
+      }
+
+      // Ensure root screen is fully interactive.
+      const rootFrame = this._focusStack[0];
+      if (rootFrame) {
+        const rootEntry = this._getEntry(rootFrame.layerName);
+        if (rootEntry) this._applyState(rootEntry, "focused");
+        this._lastChangedLayer = rootFrame.layerName;
+      }
+
+      this._updateDimLayer();
+      this._trigger("OnLayerStateChanged");
+      this._trigger("OnAnyLayerStateChanged");
+      this._log(`Navigated back to root: ${this._focusStack[0]?.layerName}`);
+    }
+
+    _actCloseAllPopups() {
+      const snapshot = [...this._popupStack];
+      for (const name of snapshot) {
+        this._actHidePopup(name);
+      }
+    }
+
     _actCompleteTransition(layerName) {
       const entry = this._getEntry(layerName);
       if (!entry) return;
@@ -819,6 +963,7 @@ export default function (parentClass) {
           prevState:        entry.prevState,
           isModal:          entry.isModal,
           manageCollisions: entry.manageCollisions,
+          mirrorOnBack:     entry.mirrorOnBack,
           customData:       [...entry.customData.entries()],
         });
       }
@@ -852,10 +997,12 @@ export default function (parentClass) {
           isModal:          l.isModal          ?? true,
           manageCollisions: l.manageCollisions ?? false,
           customData:       new Map(l.customData ?? []),
+          mirrorOnBack: l.mirrorOnBack ?? false, dismissTimer: null,
           animType: null, animDuration: null, animEasing: null,
           animating: false, animDir: "", animProgress: 0,
           animElapsed: 0, animFrom: 0, animTo: 0,
           animOnComplete: null, pendingState: null,
+          animBaseScrolls: null, animEffectiveType: null,
         });
       }
 

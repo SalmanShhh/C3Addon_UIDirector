@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    'The name of the most recently shown popup layer. Returns an empty string if no popups are visible. Example: use to determine which dialog the player is currently interacting with.',
+    "Returns the name of the topmost open popup, or empty if none. Use to check which dialog the player is looking at.",
   highlight: false,
   deprecated: false,
   params: [],

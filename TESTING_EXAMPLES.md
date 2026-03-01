@@ -469,6 +469,383 @@ Event: Button "Back" clicked
 
 ---
 
+## Test 16 - Replace Screen (No History)
+
+**Goal:** Confirm that Replace current screen removes the previous screen from history so the player cannot go Back to it.
+
+### Layer structure
+```
+[UI]
+    [Main Menu]
+    [Loading]
+```
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Loading"
+  Action: Setup screen layer -> "Main Menu"
+  Action: Show screen -> "Loading"
+
+// Simulate load complete after 2 seconds
+Event: Timer fires at 2 seconds
+  Action: Replace current screen -> "Main Menu"
+```
+
+**Expected:**
+- After Replace, `CurrentScreen()` = `"Main Menu"` and `FocusStackDepth()` = `1`
+- `Can go back` = false (Loading is not in history)
+- `PreviousScreen()` = `""` (nothing below Main Menu)
+
+---
+
+## Test 17 - Navigate to Screen with Data
+
+**Goal:** Confirm that Navigate to screen with data passes the value before the screen opens.
+
+### Event sheet
+
+```
+Event: Button "View Item" clicked
+  Action: Navigate to screen with data -> "Item Detail", key: "itemId", value: 42
+
+Trigger: On screen shown -> "Item Detail"
+  Action: Set Text -> LayerData("Item Detail", "itemId")
+  // Expect to see "42" immediately on open
+```
+
+**Expected:**
+- `LayerData("Item Detail", "itemId")` returns `"42"` inside the `On screen shown` trigger - no extra `Set layer data` call needed.
+
+---
+
+## Test 18 - Auto-dismiss Popup
+
+**Goal:** Show a popup that closes itself after 2 seconds without any player interaction.
+
+### Event sheet
+
+```
+Event: Button "Save" clicked
+  Action: Show popup for duration -> "Toast", 2000
+
+Trigger: On popup closed -> "Toast"
+  Action: Log -> "Toast closed"
+```
+
+**Expected:**
+- `Toast` appears immediately with its opening animation
+- After 2000 ms it plays its closing animation and hides automatically
+- The `On popup closed` trigger fires exactly once
+- Calling `Hide popup -> "Toast"` before 2 seconds cancels the timer and closes it immediately
+
+---
+
+## Test 19 - Mirror Close Animation
+
+**Goal:** Confirm that a screen set to mirror its close direction exits in the opposite direction to its entry direction.
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Main Menu"
+  Action: Setup screen layer -> "Settings"
+  Action: Set layer animation -> "Settings", slideLeft, 400, easeOut, mirror close: true
+  Action: Show screen -> "Main Menu"
+
+Event: Button "Settings" clicked
+  Action: Show screen -> "Settings"
+  // Settings slides in from the LEFT
+
+Event: Button "Back" clicked
+  Action: Go back
+  // Settings should slide out to the RIGHT (mirrored)
+```
+
+**Expected:**
+- Opening: `Settings` enters from the left (scrollX goes from -layout_width to 0)
+- Closing (via Go Back): `Settings` exits to the right (scrollX goes from 0 to +layout_width)
+- The mirror only applies on Go Back, not when navigating forward
+
+---
+
+## Test 20 - Breadcrumb with PreviousScreen and ScreenAtDepth
+
+**Goal:** Verify `PreviousScreen()` and `ScreenAtDepth(n)` return correct values as the stack grows and shrinks.
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Menu"
+  Action: Setup screen layer -> "Settings"
+  Action: Setup screen layer -> "Audio"
+  Action: Show screen -> "Menu"
+
+Event: Button "Settings" clicked
+  Action: Show screen -> "Settings"
+
+Event: Button "Audio" clicked
+  Action: Show screen -> "Audio"
+
+// Debug display - every tick
+Event: Every tick
+  Action: Set text -> CurrentScreen()
+    & " | Prev: " & PreviousScreen()
+    & " | Depth(1): " & ScreenAtDepth(1)
+    & " | Depth(2): " & ScreenAtDepth(2)
+    & " | Depth(3): " & ScreenAtDepth(3)
+```
+
+**Expected values at each step:**
+
+| Navigation state | CurrentScreen | PreviousScreen | ScreenAtDepth(1) | ScreenAtDepth(2) | ScreenAtDepth(3) |
+|---|---|---|---|---|---|
+| After Show Menu | `"Menu"` | `""` | `"Menu"` | `""` | `""` |
+| After Show Settings | `"Settings"` | `"Menu"` | `"Menu"` | `"Settings"` | `""` |
+| After Show Audio | `"Audio"` | `"Settings"` | `"Menu"` | `"Settings"` | `"Audio"` |
+| After Go Back | `"Settings"` | `"Menu"` | `"Menu"` | `"Settings"` | `""` |
+
+---
+
+## Test 21 - Screen Is In Navigation History
+
+**Goal:** Confirm the condition fires correctly and can prevent duplicate entries in the stack.
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Settings"
+  Action: Setup screen layer -> "Main Menu"
+  Action: Show screen -> "Main Menu"
+
+// Disable the Settings button if Settings is already in the stack
+Event: Every tick
+  Action: Set Button "Settings" enabled -> NOT (Screen "Settings" is in navigation history)
+
+Event: Button "Settings" clicked
+  Condition: NOT (Screen "Settings" is in navigation history)
+    Action: Show screen -> "Settings"
+```
+
+**Expected:**
+- After navigating to Settings: `Screen "Settings" is in navigation history` = true
+- After going back: condition = false, button re-enables
+
+---
+
+## Test 22 - Dim Layer
+
+**Goal:** Verify the dim layer appears automatically when a modal screen or popup is active and disappears when they close.
+
+### UIDirector properties
+| Property | Value |
+|---|---|
+| Dim Layer | `Dim` |
+| Dim Opacity | `0.5` |
+
+### Layer structure
+```
+[UI]
+    [Confirm Dialog]  ← popup role
+    [Dim]             ← NOT tracked - managed automatically
+    [Settings]        ← normal, blocks others: true
+    [Main Menu]       ← normal, blocks others: true
+```
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Main Menu"
+  Action: Setup screen layer -> "Settings"
+  Action: Setup popup layer  -> "Confirm Dialog"
+  Action: Show screen        -> "Main Menu"
+
+Event: Button "Settings" clicked
+  Action: Show screen -> "Settings"
+  // Dim layer should appear (Settings blocks others)
+
+Event: Button "Open Dialog" clicked
+  Action: Open popup -> "Confirm Dialog"
+  // Dim layer should appear (popup is active)
+
+Event: Button "Close Dialog" clicked
+  Action: Close popup -> "Confirm Dialog"
+  // Dim layer should disappear if no other popup or modal active
+
+Event: Button "Back" clicked
+  Action: Go back
+  // Dim layer disappears when Main Menu is the only screen (non-modal background)
+```
+
+**Expected:**
+- Dim layer is visible and at 50% opacity when Settings screen is focused
+- Dim layer is visible when Confirm Dialog popup is open
+- Dim layer hides when all modals and popups are closed
+- Dim layer is NOT tracked - `Layer "Dim" is tracked` condition returns false
+
+---
+
+## Test 23 - Go Back to First Screen
+
+**Goal:** Verify that **Go back to first screen** collapses the entire focus stack back to the root screen in one action, regardless of how many screens deep the player has navigated.
+
+### Layer structure
+```
+[UI]
+    [Keybindings]   <- normal
+    [Controls]      <- normal
+    [Settings]      <- normal
+    [Main Menu]     <- normal
+```
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Main Menu"
+  Action: Setup screen layer -> "Settings"
+  Action: Setup screen layer -> "Controls"
+  Action: Setup screen layer -> "Keybindings"
+  Action: Show screen -> "Main Menu"
+
+// ── Navigate deep ────────────────────────────────────────
+Event: Button "Settings" clicked
+  Action: Navigate to screen -> "Settings"
+
+Event: Button "Controls" clicked
+  Action: Navigate to screen -> "Controls"
+
+Event: Button "Keybindings" clicked
+  Action: Navigate to screen -> "Keybindings"
+
+// ── Home button ──────────────────────────────────────────
+Event: Button "Home" clicked
+  Action: Go back to first screen
+```
+
+**After "Home" is clicked:**
+```
+// Verify with Text = CurrentScreen()
+Expected: "Main Menu"
+
+// Verify with Text = FocusStackDepth()
+Expected: 1
+
+// Verify with Text = LayerState("Keybindings")
+Expected: "hidden"
+
+// Verify with Text = LayerState("Controls")
+Expected: "hidden"
+
+// Verify with Text = LayerState("Settings")
+Expected: "hidden"
+```
+
+**Expected:** Pressing Home from four levels deep instantly closes Keybindings, Controls, and Settings without animation and leaves Main Menu as the single focused screen.
+
+---
+
+## Test 24 - Layer Is Fully Open
+
+**Goal:** Verify that **Layer is fully open** returns false while a slide animation is in progress and true only after the animation finishes.
+
+### Layer structure
+```
+[UI]
+    [Checkout]  <- normal, animation: slideLeft, 500ms
+    [Main Menu] <- normal
+```
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Main Menu"
+  Action: Setup screen layer -> "Checkout"
+  Action: Set Layer Animation -> "Checkout", slideLeft, 500ms, easeOut
+  Action: Show screen -> "Main Menu"
+
+Event: Button "Checkout" clicked
+  Action: Navigate to screen -> "Checkout"
+
+// ── Poll every tick to show current state ─────────────────
+Every tick
+  Action: Set Text (FullyOpenLabel) ->
+    "Fully open: " & LayerState("Checkout") & " animating: " & UIDirector.LayerIsAnimating("Checkout")
+
+// ── Gate a button until animation finishes ────────────────
+Every tick
+  Condition: Layer is fully open -> "Checkout"
+  Action: Set ConfirmButton -> Enabled: true
+
+Every tick
+  Condition: Layer is fully open -> "Checkout" [INVERTED]
+  Action: Set ConfirmButton -> Enabled: false
+```
+
+**Expected during slide-in (0 - 500ms):**
+- `LayerState("Checkout")` = `"hidden"` (state is set to focused only after animation)
+- `LayerIsAnimating("Checkout")` = true
+- `Layer is fully open` = false -> ConfirmButton is Disabled
+
+**Expected after animation completes:**
+- `LayerState("Checkout")` = `"focused"`
+- `LayerIsAnimating("Checkout")` = false
+- `Layer is fully open` = true -> ConfirmButton is Enabled
+
+---
+
+## Test 25 - Close All Popups
+
+**Goal:** Verify that **Close all popups** hides every open popup in one action.
+
+### Layer structure
+```
+[UI]
+    [Alert]   <- popup role
+    [Notice]  <- popup role
+    [Main Menu] <- normal
+```
+
+### Event sheet
+
+```
+Event: On start of layout
+  Action: Setup screen layer -> "Main Menu"
+  Action: Setup popup layer  -> "Alert"
+  Action: Setup popup layer  -> "Notice"
+  Action: Show screen        -> "Main Menu"
+
+Event: Button "Show Both" clicked
+  Action: Open popup -> "Alert"
+  Action: Open popup -> "Notice"
+
+Event: Button "Clear All" clicked
+  Action: Close all popups
+```
+
+**After "Show Both" then "Clear All":**
+```
+// Verify:
+Condition: Any popup visible
+Expected: false
+
+LayerState("Alert")
+Expected: "hidden"
+
+LayerState("Notice")
+Expected: "hidden"
+```
+
+**Expected:** Both popups close (with their configured animation, if any). `Any popup visible` returns false immediately after both animations finish.
+
+---
+
 ## Debugging Tips
 
 - Enable **Debug Mode** in the UIDirector Properties Bar - all state changes and transitions are logged to the browser DevTools console.

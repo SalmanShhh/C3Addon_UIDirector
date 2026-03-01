@@ -2,7 +2,7 @@ export const config = {
   listName: "On layer fully closed",
   displayText: "On layer {0} fully closed",
   description:
-    "Fires after a layer finishes its closing animation and is no longer the active screen. Example: stop a timer or clean up resources after 'Settings' finishes closing.",
+    "Triggers after a layer finishes closing. Use to clean up or stop timers once a screen is fully gone.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

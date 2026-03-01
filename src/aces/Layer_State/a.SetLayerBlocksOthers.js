@@ -2,7 +2,7 @@ export const config = {
   listName: "Set layer blocks other screens",
   displayText: "Set layer {0} blocks other screens: {1}",
   description:
-    "Change whether a screen blocks all other screens when it becomes active. When blocking is on, only this screen can receive input - all others become non-interactive. Takes effect on the next Navigate to screen call. Example: make 'Credits' non-blocking so the HUD remains interactive while it's shown.",
+    "Sets whether a screen disables all other screens when active. Use to make fullscreen menus block input behind them.",
   isAsync: false,
   highlight: false,
   deprecated: false,

@@ -2,7 +2,7 @@ export const config = {
   listName: "Set layer input enabled",
   displayText: "Set layer {0} input enabled: {1}",
   description:
-    "Manually turn a layer's input on or off. UIDirector will not override this until the next state change. Use sparingly - prefer Set Layer State for normal state management. Example: temporarily disable a layer's buttons while an animation plays.",
+    "Manually turns a layer's input on or off. Use to temporarily disable buttons during an animation or loading.",
   isAsync: false,
   highlight: false,
   deprecated: false,

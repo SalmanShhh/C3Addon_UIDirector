@@ -1,8 +1,8 @@
 export const config = {
   listName: "Set layer animation",
-  displayText: "Set layer {0} animation: {1}, {2} ms, {3}",
+  displayText: "Set layer {0} animation: {1}, {2} ms, {3}, mirror close: {4}",
   description:
-    "Override the default animation for a specific layer. Useful when different screens need different transitions. Example: make 'Game Over' slide in from the bottom (Slide Down, 400ms, EaseIn) while other screens use the default fade.",
+    "Sets the animation type, speed, easing, and mirror direction for a layer. Use to customize how each screen slides or fades in and out.",
   isAsync: false,
   highlight: false,
   deprecated: false,
@@ -49,11 +49,18 @@ export const config = {
         { easeInOut: "Ease In Out" },
       ],
     },
+    {
+      id: "mirrorOnBack",
+      name: "Mirror close direction",
+      desc: "When true, the closing animation plays in the opposite direction to the opening animation. Only affects slide animations. Ignored for fade and none.",
+      type: "boolean",
+      initialValue: "false",
+    },
   ],
 };
 
 export const expose = true;
 
-export default function (layerName, type, duration, easing) {
-  this._actSetLayerAnimation(layerName, type, duration, easing);
+export default function (layerName, type, duration, easing, mirrorOnBack) {
+  this._actSetLayerAnimation(layerName, type, duration, easing, mirrorOnBack);
 }

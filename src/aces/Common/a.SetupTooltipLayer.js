@@ -2,7 +2,7 @@ export const config = {
   listName: "Setup tooltip layer",
   displayText: "Setup tooltip layer {0}",
   description:
-    "Register a layer as a tooltip. Tooltips are display-only (never interactive) and always render on top of everything. Only one tooltip can be visible at a time - showing a new one hides the previous. Example: setup 'Item Description', 'Hover Hint'.",
+    "Registers a layer as a tooltip. Call once at the start for each tooltip layer like 'Item Hint' or 'Button Description'.",
   isAsync: false,
   highlight: false,
   deprecated: false,

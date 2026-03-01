@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    'The state a tracked layer was in before its most recent transition. Useful for implementing undo logic or restoring a layer after a temporary change. Example: if PreviousLayerState("HUD") = "visible" -> re-show the HUD after a cutscene.',
+    "Returns the state a layer was in before its last change. Use to restore a layer after a temporary change.",
   highlight: false,
   deprecated: false,
   params: [

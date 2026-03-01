@@ -2,7 +2,7 @@ export const config = {
   listName: "On popup closed",
   displayText: "On popup {0} closed",
   description:
-    "Fires when a popup is hidden. Use this to react after a dialog is dismissed. Example: check if the player confirmed or cancelled after 'Confirm Quit' closes.",
+    "Triggers when a popup closes. Use to check the player's choice after a confirmation dialog.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

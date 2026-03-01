@@ -2,7 +2,7 @@ export const config = {
   listName: "On screen hidden",
   displayText: "On screen {0} hidden",
   description:
-    "Fires when a screen is dismissed (popped from the focus stack). Use this to clean up or resume things after a screen closes. Example: resume game music when the 'Pause Menu' is dismissed.",
+    "Triggers when a screen is closed. Use to resume music or clean up after leaving a screen.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

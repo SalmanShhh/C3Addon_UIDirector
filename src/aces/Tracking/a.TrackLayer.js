@@ -2,7 +2,7 @@ export const config = {
   listName: "Track layer",
   displayText: "Track layer {0} as {1} | Modal: {2} | Manage collisions: {3}",
   description:
-    "Register a sublayer with UIDirector so it can be controlled by other actions. Call this once per layer at layout start. Role determines how the layer behaves: Normal = navigable screen, Popup = overlay above screens, Tooltip = display-only overlay. Modal = when focused, all other normal layers are made non-interactive. Manage collisions = collision detection mirrors the layer's interactive state.",
+    "Registers a layer so UIDirector can control it. Call once per layer at the start. Choose its role (screen, popup, or tooltip) and options like blocking input or syncing collisions.",
   isAsync: false,
   highlight: false,
   deprecated: false,

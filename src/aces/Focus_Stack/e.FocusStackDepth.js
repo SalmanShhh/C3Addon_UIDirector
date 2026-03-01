@@ -1,7 +1,7 @@
 export const config = {
   returnType: "number",
   description:
-    "The number of layers currently on the focus stack. 0 means no screens are active. 1 means one screen is focused. Higher values mean the player has navigated deeper into nested screens. Example: use to show a breadcrumb trail or depth indicator.",
+    "How many screens deep the player is. 0 = none, 1 = one screen, 2+ = deeper. Use for breadcrumbs or depth indicators.",
   highlight: false,
   deprecated: false,
   params: [],

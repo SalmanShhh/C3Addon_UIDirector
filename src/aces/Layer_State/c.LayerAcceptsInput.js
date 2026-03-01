@@ -2,7 +2,7 @@ export const config = {
   listName: "Layer accepts input",
   displayText: "Layer {0} accepts input",
   description:
-    "True if the layer is currently accepting pointer and touch input. Note: this checks the live C3 layer value, not UIDirector's state. Example: use this to guard input handling - only process button clicks if the layer accepts input.",
+    "True if the layer currently accepts clicks and touches. Use to guard button logic so it only runs when the layer is interactive.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

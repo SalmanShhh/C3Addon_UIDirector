@@ -2,7 +2,7 @@ export const config = {
   listName: "Skip all animations",
   displayText: "Skip all layer animations",
   description:
-    "Immediately complete all currently in-progress layer transition animations. All animating layers snap to their final states. Example: call this when the player enters accessibility settings or on low-performance devices to disable all transitions at once.",
+    "Skips every layer's animation at once and jumps to their final states. Use for accessibility options or low-performance devices.",
   isAsync: false,
   highlight: false,
   deprecated: false,

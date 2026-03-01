@@ -2,7 +2,7 @@ export const config = {
   listName: "Untrack layer",
   displayText: "Untrack layer {0}",
   description:
-    "Remove a layer from UIDirector's tracking. UIDirector will no longer control it. Does not change the layer's current visible/interactive state. Example: untrack a layer before destroying it or handing control back to your own event sheet.",
+    "Removes a layer from UIDirector. It keeps its current look but UIDirector stops managing it. Use before destroying a layer.",
   isAsync: false,
   highlight: false,
   deprecated: false,

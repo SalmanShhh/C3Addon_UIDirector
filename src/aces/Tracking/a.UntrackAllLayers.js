@@ -2,7 +2,7 @@ export const config = {
   listName: "Untrack all layers",
   displayText: "Untrack all layers",
   description:
-    "Remove all layers from UIDirector's tracking and clear all stacks. Does not modify any layer's visible/interactive state. Useful when changing layouts or resetting UI state completely.",
+    "Removes all layers from UIDirector and clears all stacks. Use when changing layouts or doing a full UI reset.",
   isAsync: false,
   highlight: false,
   deprecated: false,

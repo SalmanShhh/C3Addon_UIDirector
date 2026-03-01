@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    'The name of the screen the player is currently on. Returns an empty string if no screen is focused. Example: set a Text object to CurrentScreen() to display which screen is active in a debug HUD.',
+    "Returns the name of the active screen, or empty if none. Use for debug displays or screen-specific logic.",
   highlight: false,
   deprecated: false,
   params: [],

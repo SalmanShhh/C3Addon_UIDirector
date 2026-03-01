@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    'Retrieve a custom data value stored on a layer with Set Layer Data. Returns an empty string if the key does not exist. Example: LayerData("Item Detail", "itemId") returns the item ID that was stored before opening the screen.',
+    "Returns a stored value from a layer by key. Use to read data like an item ID that was set before the screen opened.",
   highlight: false,
   deprecated: false,
   params: [

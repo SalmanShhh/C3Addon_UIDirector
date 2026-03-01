@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    'The current state of a tracked layer: "visible", "hidden", "disabled", or "focused". Returns an empty string if the layer is not tracked. Example: use in a Text object to display the current state for debugging.',
+    "Returns a layer's current state: 'visible', 'hidden', 'disabled', or 'focused'. Use for debug displays or conditional logic.",
   highlight: false,
   deprecated: false,
   params: [

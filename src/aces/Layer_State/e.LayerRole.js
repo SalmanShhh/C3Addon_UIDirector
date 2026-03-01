@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    'The role of a tracked layer: "normal", "popup", or "tooltip". Returns an empty string if the layer is not tracked. Example: use to display the layer role in a debug overlay.',
+    "Returns a layer's role: 'normal', 'popup', or 'tooltip'. Use for debug displays.",
   highlight: false,
   deprecated: false,
   params: [

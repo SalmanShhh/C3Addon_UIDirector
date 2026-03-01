@@ -2,7 +2,7 @@ export const config = {
   listName: "A tooltip is visible",
   displayText: "A tooltip is visible",
   description:
-    "True when any tooltip-role layer is currently visible. Example: use to suppress other hover effects while a tooltip is already showing.",
+    "True when a tooltip is currently showing. Use to suppress other hover effects while a tooltip is up.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,

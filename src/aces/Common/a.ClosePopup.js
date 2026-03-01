@@ -2,7 +2,7 @@ export const config = {
   listName: "Close popup",
   displayText: "Close popup {0}",
   description:
-    "Hide a popup window. The screen behind it regains input. Example: player clicks Cancel in a dialog -> ClosePopup(\"Confirm Quit\").",
+    "Closes a popup. Use for dismiss or cancel buttons on dialogs.",
   isAsync: false,
   highlight: false,
   deprecated: false,

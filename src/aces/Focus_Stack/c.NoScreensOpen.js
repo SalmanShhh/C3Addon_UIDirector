@@ -2,7 +2,7 @@ export const config = {
   listName: "No screens are open",
   displayText: "No screens are open",
   description:
-    "True when no screens are currently open or active. Example: use this to show a first-launch screen, or to handle the case where the player has navigated all the way back to the root.",
+    "True when no screens are open. Use to detect when the player has backed out of all menus.",
   isTrigger: false,
   isInvertible: true,
   highlight: false,
