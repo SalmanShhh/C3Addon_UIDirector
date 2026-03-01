@@ -19,6 +19,7 @@
 11. [Expressions Reference](#11-expressions-reference)
 12. [Triggers Reference](#12-triggers-reference)
 13. [Game Use Cases](#13-game-use-cases)
+14. [C3 Debugger](#14-c3-debugger)
 
 ---
 
@@ -1138,6 +1139,60 @@ Event: On "Return to Menu" button clicked
 ```
 
 **Close all popups** is also useful when showing a game-critical alert that must not be obscured by any existing dialog.
+
+---
+
+## 14. C3 Debugger
+
+UIDirector exposes a live panel in the **C3 Debugger** (the built-in debugger you open with F12 while previewing). No setup is needed — open the debugger, expand the UIDirector instance, and you see the full runtime state.
+
+### What the debugger shows
+
+**UI Director — Summary**
+
+A quick overview of the most important state at a glance.
+
+| Field | What it shows |
+|---|---|
+| Active screen | Name of the screen currently at the top of the focus stack |
+| Stack depth | How many screens are in the navigation history |
+| Open popups | Number of currently open popups |
+| Active tooltip | Name of the visible tooltip, or `(none)` |
+| Animating layers | Number of layers currently mid-transition |
+| Total tracked | Total number of layers registered with UIDirector |
+
+**UI Director — Settings**
+
+The values of every plugin property — container layer, default animation type, duration, easing, dim layer, and so on.
+
+**UI Director — Focus Stack**
+
+One row per screen in the navigation history, shown top-first (active screen at the top, labelled `◀ active`). Each row shows the screen's current state.
+
+**UI Director — Open Popups**
+
+One row per currently open popup. Popups with an active auto-dismiss timer show `⏳ auto-dismiss`.
+
+**Layer: [name]**
+
+One section per tracked layer, showing:
+- Role (`normal`, `popup`, `tooltip`)
+- State — if animating, also shows direction and progress percentage (e.g. `focused  (opening  42%)`)
+- Previous state
+- Modal flag and mirror-on-back flag (normal-role layers only)
+- Sync collisions flag (if enabled)
+- Animation override (`animType`, `animDuration`, `animEasing`) if one has been set via **Set layer animation**
+- Custom data key/value pairs (if any have been set via **Set layer data**)
+
+### How to use it
+
+1. Preview your project.
+2. Press **F12** (or use the C3 preview toolbar) to open the debugger.
+3. Find the **UIDirector** instance in the object list.
+4. Expand it to see all sections.
+5. The panel updates every frame — watch the state change live as you navigate screens, open popups, and trigger animations.
+
+The debugger panel replaces the need for debug Text objects that manually read expressions like `CurrentScreen()` or `LayerState()`. Everything is already surfaced in one place.
 
 ---
 

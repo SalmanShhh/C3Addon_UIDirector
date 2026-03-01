@@ -539,6 +539,107 @@ export default function (parentClass) {
     }
 
     // ─────────────────────────────────────────────────────────
+    // C3 Debugger
+    // ─────────────────────────────────────────────────────────
+
+    _getDebuggerProperties() {
+      const sections = [];
+
+      // ── Summary ──
+      const activeScreen = this._focusStack.at(-1)?.layerName ?? "(none)";
+      sections.push({
+        title: "UI Director — Summary",
+        properties: [
+          { name: "Active screen",     value: activeScreen },
+          { name: "Stack depth",       value: this._focusStack.length },
+          { name: "Open popups",       value: this._popupStack.length },
+          { name: "Active tooltip",    value: this._activeTooltip ?? "(none)" },
+          { name: "Animating layers",  value: this._animatingLayers.size },
+          { name: "Total tracked",     value: this._layers.size },
+        ],
+      });
+
+      // ── Settings ──
+      sections.push({
+        title: "UI Director — Settings",
+        properties: [
+          { name: "Container layer",        value: this._getProperty("uiContainerLayer") },
+          { name: "Default anim",           value: this._getProperty("defaultAnimType") },
+          { name: "Default duration (ms)",  value: this._getProperty("defaultAnimDuration") },
+          { name: "Default easing",         value: this._getProperty("defaultAnimEasing") },
+          { name: "Persist across layouts", value: this._getProperty("persistAcrossLayouts") },
+          { name: "Debug mode",             value: this._getProperty("debugMode") },
+          { name: "Dim layer",              value: this._getProperty("dimLayer") || "(none)" },
+          { name: "Dim opacity",            value: this._getProperty("dimOpacity") },
+        ],
+      });
+
+      // ── Focus stack ──
+      if (this._focusStack.length > 0) {
+        const props = [];
+        for (let i = this._focusStack.length - 1; i >= 0; i--) {
+          const frame = this._focusStack[i];
+          const entry = this._getEntry(frame.layerName);
+          const label = i === this._focusStack.length - 1
+            ? `[${i + 1}] ${frame.layerName}  ◀ active`
+            : `[${i + 1}] ${frame.layerName}`;
+          props.push({ name: label, value: entry?.state ?? "?" });
+        }
+        sections.push({ title: "UI Director — Focus Stack", properties: props });
+      }
+
+      // ── Open popups ──
+      if (this._popupStack.length > 0) {
+        const props = [];
+        for (const name of this._popupStack) {
+          const entry = this._getEntry(name);
+          const timer = entry?.dismissTimer !== null ? "  ⏳ auto-dismiss" : "";
+          props.push({ name, value: (entry?.state ?? "?") + timer });
+        }
+        sections.push({ title: "UI Director — Open Popups", properties: props });
+      }
+
+      // ── One section per tracked layer ──
+      for (const entry of this._layers.values()) {
+        const stateStr = entry.animating
+          ? `${entry.state}  (${entry.animDir}  ${(entry.animProgress * 100).toFixed(0)}%)`
+          : entry.state;
+
+        const props = [
+          { name: "Role",       value: entry.role },
+          { name: "State",      value: stateStr },
+          { name: "Prev state", value: entry.prevState },
+        ];
+
+        if (entry.role === "normal") {
+          props.push({ name: "Modal",          value: entry.isModal });
+          props.push({ name: "Mirror on back", value: entry.mirrorOnBack });
+        }
+
+        if (entry.manageCollisions) {
+          props.push({ name: "Sync collisions", value: true });
+        }
+
+        if (entry.animType !== null || entry.animDuration !== null || entry.animEasing !== null) {
+          props.push({
+            name:  "Anim override",
+            value: `${entry.animType ?? "default"}  ${entry.animDuration ?? "default"}ms  ${entry.animEasing ?? "default"}`,
+          });
+        }
+
+        if (entry.customData.size > 0) {
+          for (const [k, v] of entry.customData) {
+            props.push({ name: `  data.${k}`, value: v });
+          }
+        }
+
+        sections.push({ title: `Layer: ${entry.name}`, properties: props });
+      }
+
+      return sections;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // Action implementations
     // ─────────────────────────────────────────────────────────
 

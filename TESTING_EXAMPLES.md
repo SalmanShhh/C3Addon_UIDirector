@@ -846,8 +846,101 @@ Expected: "hidden"
 
 ---
 
+## Test 26 - C3 Debugger Panel
+
+**Purpose:** Verify that the C3 Debugger panel shows accurate live state for all tracked layers.
+
+**Setup:**
+```
+// Layout start
+Action: Setup screen layer   -> "Main Menu"
+Action: Setup screen layer   -> "Settings"
+Action: Setup popup layer    -> "Confirm Quit"
+Action: Setup tooltip layer  -> "Hint"
+Action: Show screen          -> "Main Menu"
+Action: Set layer animation  -> "Settings", slideLeft, 400ms, easeOut, mirror: true
+Action: Set layer data       -> "Settings", "tab", "audio"
+```
+
+**Step 1 - Baseline check:**
+Open the C3 Debugger, expand UIDirector.
+
+```
+// Expected — Summary section:
+Active screen:    "Main Menu"
+Stack depth:      1
+Open popups:      0
+Active tooltip:   (none)
+Animating layers: 0
+Total tracked:    3
+
+// Expected — Focus Stack section:
+[1] Main Menu  ◀ active   →  focused
+
+// Expected — Layer: Settings section:
+Role:          normal
+State:         hidden
+Anim override: slideLeft  400ms  easeOut
+data.tab:      audio
+Mirror on back: true
+```
+
+**Step 2 - Navigate to Settings:**
+```
+Action: Navigate to screen -> "Settings"
+```
+While the slide animation is playing, check the debugger mid-frame:
+```
+// Expected — Layer: Settings section while animating:
+State:  hidden  (opening  ~50%)    ← percentage climbs toward 100
+
+// Expected — Summary:
+Animating layers: 1
+```
+After animation finishes:
+```
+State:         focused
+Stack depth:   2
+[2] Settings  ◀ active
+[1] Main Menu
+```
+
+**Step 3 - Open popup:**
+```
+Action: Open popup -> "Confirm Quit"
+```
+```
+// Expected — Summary:
+Open popups: 1
+
+// Expected — Open Popups section:
+Confirm Quit → visible
+```
+
+**Step 4 - Show tooltip:**
+```
+Action: Show tooltip -> "Hint"
+```
+```
+// Expected — Summary:
+Active tooltip: Hint
+```
+
+**Step 5 - Go back:**
+```
+Action: Go back
+```
+```
+// Expected — Summary after animation:
+Active screen: Main Menu
+Stack depth:   1
+```
+
+---
+
 ## Debugging Tips
 
-- Enable **Debug Mode** in the UIDirector Properties Bar - all state changes and transitions are logged to the browser DevTools console.
-- Open the C3 debugger and watch the Text objects showing `CurrentScreen()`, `FocusStackDepth()`, and `LayerState()` update in real time.
+- Enable **Debug Mode** in the UIDirector Properties Bar — all state changes and transitions are logged to the browser DevTools console with `[UIDirector]` prefix.
+- Open the C3 Debugger (F12 during preview) and expand the UIDirector instance. Every tracked layer, the full focus stack, and all open popups are shown in real time with no extra event sheet setup needed.
 - If a layer doesn't respond, check: is it a sublayer of the group layer named in **UI Container Layer**? Is the name spelling identical (case-sensitive)?
+- If the debugger shows `Animating layers: 1` but the screen looks stuck, the animation duration may be very long. Use **Finish animation instantly** on that layer to skip it.
