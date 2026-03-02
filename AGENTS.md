@@ -258,12 +258,33 @@ export default function (parentClass) {
   return class extends parentClass {
     constructor() {
       super();
+      this._setTicking(true);  // enable _tick() every frame
       const properties = this._getInitProperties();
-      // Access properties: properties[0], properties[1], etc.
+      // Access properties by index (matches declaration order in config.caw.js)
+      // NOTE: this.runtime is NOT available here — use onCreate() for that
     }
 
-    // Trigger a condition
+    // Called after full creation — this.runtime is available here
+    onCreate() {
+      const layer = this.runtime.layout.getLayer("MyLayer");
+    }
+
+    // Called every frame (enabled by _setTicking(true) in constructor)
+    // _tick() receives NO parameters — get dt from this.runtime.dt (seconds)
+    _tick() {
+      const dt = this.runtime.dt;
+      this._myTimer += dt;
+    }
+
+    // Called when the instance is destroyed — always call super._release()
+    _release() {
+      super._release();
+    }
+
+    // Trigger a condition — CAW pattern (dispatch + super._trigger)
+    // Define this in instance.js; call this._trigger("MethodName") from your code
     _trigger(method) {
+      this.dispatch(method);
       super._trigger(self.C3.Plugins[id].Cnds[method]);
     }
 
@@ -295,6 +316,26 @@ PROPERTY_TYPE.GROUP; // Property group header
 PROPERTY_TYPE.FONT; // Font picker
 PROPERTY_TYPE.LINK; // Clickable link
 PROPERTY_TYPE.INFO; // Info display
+```
+
+## Layer API
+
+A layer reference (`ILayer`) returned by `this.runtime.layout.getLayer("name")`.
+
+```javascript
+layer.visible      // boolean — get/set: shows/hides the layer
+layer.interactive  // boolean — get/set: enables/disables input
+layer.opacity      // number 0–1 — get/set: layer transparency
+layer.scrollX      // number — horizontal scroll offset in px
+layer.scrollY      // number — vertical scroll offset in px
+layer.name         // string — layer name (read-only)
+
+// Group layer children — check both, different C3 builds use different names
+for (const sub of layer.subLayers?.() ?? layer.layers?.() ?? []) { ... }
+for (const parent of layer.parentLayers()) { ... }  // walk up parent chain
+
+// Z-order — feature-detect before calling, not available on all C3 builds
+this.runtime.layout.moveLayerToIndex(layerRef, index);
 ```
 
 ## Build Configuration (buildconfig.js)
@@ -351,12 +392,102 @@ export default function () {
 // In instance.js, call: this._trigger("ConditionMethodName");
 ```
 
+### Debugger Support
+
+Implement `_getDebuggerProperties()` on the instance class to expose live state in the C3 Debugger panel (F12 during preview). No config changes needed — C3 calls it automatically if it exists.
+
+```javascript
+_getDebuggerProperties() {
+  const sections = [];
+
+  sections.push({
+    title: `$${this.type.name} — Summary`,  // behaviors: this.behaviorType.name
+    properties: [
+      { name: "$Active item", value: this._activeItem ?? "(none)" },
+      { name: "$Total items", value: this._items.size },
+      { name: "$Debug mode",  value: this._debug },
+    ],
+  });
+
+  // Optional: one section per tracked item
+  for (const item of this._items.values()) {
+    sections.push({
+      title: `$Item: ${item.id}`,
+      properties: [
+        { name: "$State", value: item.state },
+      ],
+    });
+  }
+
+  return sections;
+}
+```
+
+- `value` can be string, number, or boolean
+- Called every frame — keep it fast (no heavy computation)
+- **Prefix ALL `title` and `name` strings with `$`** — C3 treats them as translation keys and logs an error every frame if they're missing from the translation file. The `$` prefix marks them as literal strings that skip lookup.
+- **Do not add debugger strings to the translation file manually** — CAW overwrites it on every build. The `$` prefix is the only correct approach.
+
 ### Accessing Other Instances
 
 ```javascript
 export default function () {
-  const runtime = this._runtime;
-  const allInstances = runtime.objects.Sprite.getAllInstances();
+  const runtime = this.runtime;  // use this.runtime, NOT this._runtime
+  for (const objType of runtime.objects) {
+    for (const inst of objType.getAllInstances()) {
+      inst.x; inst.y; inst.layer;
+    }
+  }
+}
+```
+
+## Behavior-Specific Patterns
+
+For **behaviors** (not plugins), `this` is the behavior, not the C3 object it is attached to.
+
+```javascript
+this           // the behavior runtime instance
+this.instance  // the IWorldInstance the behavior is attached to
+this.instance.runtime  // IRuntime — same as plugin's this.runtime
+```
+
+**`this.instance` is NULL in `constructor()`** — do not access it there. Use `_tick()` with a one-time init guard:
+
+```javascript
+_tick() {
+  if (!this._initialized) {
+    this._initialized = true;
+    // safe to access this.instance here
+  }
+}
+```
+
+**`this.instance.behaviors` is an object, not an array** — `for...of` throws. Use `Object.values()`:
+
+```javascript
+for (const b of Object.values(this.instance.behaviors)) {
+  if (b.behaviorType?.name === "Platform") { /* ... */ }
+}
+// Known C3 type names: "Platform", "Solid", "Jumpthru", "Physics", "Bullet", "Pathfinding"
+```
+
+**For shared state across all instances of a behavior**, use a module-scope `Map` (the SPOT pattern) — or better, use a separate `IsSingleGlobal: true` plugin when possible.
+
+## Editor Instance
+
+`src/editor/instance.js` — runs in the **editor** (not at game runtime). Used for reacting to property changes in the Properties Bar.
+
+```javascript
+export default function (instanceClass) {
+  return class extends instanceClass {
+    constructor(sdkType, inst) { super(sdkType, inst); }
+    OnCreate() {}                    // instance created in editor layout
+    OnPlacedInLayout() {}            // dragged from object panel onto layout
+    OnPropertyChanged(id, value) {   // any property changed in Properties Bar
+      if (id === "myProperty") { /* react */ }
+    }
+    Release() {}                     // instance deleted
+  };
 }
 ```
 
@@ -368,3 +499,19 @@ export default function () {
 4. **File naming**: Use correct prefixes (`a.`, `c.`, `e.`) or folder structure
 5. **Category names**: Folder names become category IDs (use underscores, not spaces)
 6. **Version**: Edit `version.js` to update addon version
+7. **`this.runtime` unavailable in `constructor()`**: Only plain data init is safe there. Use `onCreate()` for anything needing the runtime, layout, or layers.
+8. **Expression params do not support `initialValue`**: Unlike action/condition params, expression params must not include `initialValue` — it causes a build error.
+9. **Arrow functions in ACE exports break `this`**: Always use `function` keyword for `export default` — arrow functions lose the instance binding.
+   ```javascript
+   export default function (param) { this._do(param); }  // ✓
+   export default (param) => { this._do(param); }        // ✗ — this is undefined
+   ```
+10. **`expose` flag**: Set `expose: true` on an ACE to copy its function onto the instance prototype (callable as `this.methodName()` from other ACEs). Use `expose: false` for ACEs that only run as event sheet actions.
+11. **Combo ACE params at runtime are 0-based indices, not strings**: C3 passes combo params as numbers. `if (strategy === "balanced")` is always false. Map to a string first:
+    ```javascript
+    const s = ["balanced", "shortest", "safest"][strategy];
+    if (s === "balanced") { ... }
+    ```
+    Property combos from `_getInitProperties()` are also 0-based indices — same pattern applies.
+12. **Combo item keys must not contain hyphens**: `{ "one-way": "One-way" }` causes comparison failures at runtime. Use underscores: `{ one_way: "One-way" }`.
+13. **Conditions and expressions share the ACE ID namespace**: A condition and expression with the same ID will collide — one silently overrides the other. Always use distinct IDs across both types.
