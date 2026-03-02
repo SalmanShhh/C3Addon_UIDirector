@@ -938,6 +938,149 @@ Stack depth:   1
 
 ---
 
+## Test 27 - Per-Instance Timescale
+
+**Purpose:** Verify that `Set layer timescale` and `Reset layer timescale` apply to all instances on a layer (including sublayers), and that the override is independent of the global timescale.
+
+**Setup:**
+```
+// Layout start — "UI - HUD" has at least one Sprite with an animation running
+Action: Track layer -> "UI - HUD", Normal, Modal: false, Manage collisions: false
+Action: Show screen -> "UI - HUD"
+```
+
+**Step 1 - Freeze layer instances:**
+```
+Action: Set layer timescale -> "UI - HUD", 0, -1
+//                                          ↑   ↑
+//                      instanceTimescale=0 (freeze)
+//                         runtimeTimescale=-1 (don't change runtime override)
+```
+```
+// Expected:
+All Sprite animations on "UI - HUD" freeze (frame stops updating).
+Global timescale is still 1 — game objects outside the layer continue animating.
+```
+
+**Step 2 - Set global timescale to 0 (game paused), then unfreeze UI:**
+```
+System: Set time scale -> 0         ← game pauses
+Action: Set layer timescale -> "UI - HUD", 1, -1
+```
+```
+// Expected:
+Game objects freeze (global ts = 0).
+"UI - HUD" instances animate at full speed despite global pause.
+```
+
+**Step 3 - Reset instances to follow global:**
+```
+Action: Reset layer timescale -> "UI - HUD"
+```
+```
+// Expected:
+"UI - HUD" instances now also freeze (they follow global ts = 0 again).
+```
+
+**Step 4 - Restore global and verify sublayer propagation:**
+```
+System: Set time scale -> 1
+Action: Set layer timescale -> "UI - HUD", 2, -1   ← double speed, don't change runtime
+```
+```
+// Expected:
+If "UI - HUD" is a group layer, instances on all nested sublayers run at 2× speed.
+```
+
+---
+
+## Test 28 - Managed Runtime Timescale (Auto-Restore)
+
+**Purpose:** Verify that the `runtimeTimescale` parameter of `Set layer timescale` automatically applies the configured global timescale when a layer opens and restores the previous value when it closes. Also verify correct stacking behaviour when multiple layers have overrides.
+
+**Setup:**
+```
+// Layout start
+Action: Setup screen layer -> "Main Menu"
+Action: Setup screen layer -> "PauseMenu"
+Action: Setup screen layer -> "OptionsMenu"
+Action: Setup popup layer  -> "ModalPopup"
+Action: Show screen        -> "Main Menu"
+
+// Configure timescales — instance=1 keeps UI animated, runtime=X freezes/slows game
+Action: Set layer timescale -> "PauseMenu",   1, 0      ← instance animated, runtime=0 (freeze)
+Action: Set layer timescale -> "OptionsMenu", 1, 0.25   ← instance animated, runtime=0.25 (slow-mo)
+Action: Set layer timescale -> "ModalPopup",  -1, 0     ← runtime=0 only (instance unchanged)
+```
+
+**Step 1 - Open PauseMenu:**
+```
+Action: Navigate to screen -> "PauseMenu"
+```
+```
+// Expected:
+runtime.timeScale = 0  (game frozen)
+PauseMenu instances animate (their timeScale = 1)
+```
+
+**Step 2 - Open OptionsMenu from within PauseMenu:**
+```
+Action: Navigate to screen -> "OptionsMenu"
+```
+```
+// Expected:
+runtime.timeScale = 0.25  (slow-motion override from OptionsMenu)
+// PauseMenu's saved value is 0 (what runtime.timeScale was when PauseMenu was active)
+```
+
+**Step 3 - Close OptionsMenu:**
+```
+Action: Return to previous screen
+```
+```
+// Expected:
+runtime.timeScale = 0  (PauseMenu's override restored — NOT 1)
+```
+
+**Step 4 - Close PauseMenu:**
+```
+Action: Return to previous screen
+```
+```
+// Expected:
+runtime.timeScale = 1  (original value from before PauseMenu opened)
+```
+
+**Step 5 - Popup test:**
+```
+Action: Open popup -> "ModalPopup"
+```
+```
+// Expected:
+runtime.timeScale = 0
+```
+```
+Action: Close popup -> "ModalPopup"
+```
+```
+// Expected:
+runtime.timeScale = 1  (restored)
+```
+
+**Step 6 - Clear the override:**
+```
+Action: Set layer timescale -> "PauseMenu", -1, -1
+//                                          ↑    ↑
+//                  instance unchanged (-1) | runtime override cleared (-1)
+Action: Navigate to screen -> "PauseMenu"
+```
+```
+// Expected:
+runtime.timeScale unchanged (still 1) — the -1 cleared the runtime override
+```
+
+---
+
 ## Debugging Tips
 
 - Enable **Debug Mode** in the UIDirector Properties Bar — all state changes and transitions are logged to the browser DevTools console with `[UIDirector]` prefix.

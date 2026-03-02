@@ -10,6 +10,7 @@ export default function (parentClass) {
     constructor() {
       super();
       this.events = {};
+      this._setTicking(true);
 
       // Cache properties by name for easy access.
       // Index order MUST match the declaration order in config.caw.js:
@@ -18,11 +19,14 @@ export default function (parentClass) {
       // 6:dimLayer 7:dimOpacity
       const props = this._getInitProperties();
       if (props) {
+        // COMBO properties arrive as 0-based numeric indices — map to strings.
+        const animTypeKeys = ["fade", "slideLeft", "slideRight", "slideUp", "slideDown", "none"];
+        const easingKeys   = ["linear", "easeIn", "easeOut", "easeInOut"];
         this._props = {
           uiContainerLayer:    props[0],
-          defaultAnimType:     props[1],
+          defaultAnimType:     animTypeKeys[props[1]] ?? "fade",
           defaultAnimDuration: props[2],
-          defaultAnimEasing:   props[3],
+          defaultAnimEasing:   easingKeys[props[3]]   ?? "easeOut",
           persistAcrossLayouts: props[4],
           debugMode:           props[5],
           dimLayer:            props[6],
@@ -52,8 +56,6 @@ export default function (parentClass) {
       this._lastUnfocusedLayer = "";
 
       this._containerRef = this._resolveContainer();
-
-      this.runtime.addEventListener("tick", () => this._onTick());
 
       if (this._getProperty("persistAcrossLayouts")) {
         const saved = globalThis.__uimanager_state;
@@ -440,6 +442,49 @@ export default function (parentClass) {
     }
 
     // ─────────────────────────────────────────────────────────
+    // Timescale helpers
+    // ─────────────────────────────────────────────────────────
+
+    _actSetLayerTimescale(layerName, instanceTimescale, runtimeTimescale) {
+      const entry = this._getEntry(layerName);
+      if (!entry) return;
+      if (instanceTimescale >= 0) {
+        for (const instance of this._getAllInstancesOnLayer(entry.ref)) {
+          instance.timeScale = instanceTimescale;
+        }
+        this._log(`Instance timescale set to ${instanceTimescale} on layer: ${layerName}`);
+      }
+      entry.runtimeTimescale = runtimeTimescale < 0 ? null : runtimeTimescale;
+      this._log(`Runtime timescale override: ${entry.runtimeTimescale ?? "none"} on layer: ${layerName}`);
+    }
+
+    _actResetLayerTimescale(layerName) {
+      const entry = this._getEntry(layerName);
+      if (!entry) return;
+      for (const instance of this._getAllInstancesOnLayer(entry.ref)) {
+        if (typeof instance.restoreTimeScale === "function") instance.restoreTimeScale();
+        else instance.timeScale = 1;
+      }
+      entry.runtimeTimescale = null;
+      this._restoreRuntimeTimescale(entry);
+      this._log(`Timescales reset on layer: ${layerName}`);
+    }
+
+    _applyRuntimeTimescale(entry) {
+      if (entry.runtimeTimescale === null) return;
+      entry.savedRuntimeTimescale = this.runtime.timeScale;
+      this.runtime.timeScale = entry.runtimeTimescale;
+      this._log(`Runtime timescale → ${entry.runtimeTimescale} (was ${entry.savedRuntimeTimescale})`);
+    }
+
+    _restoreRuntimeTimescale(entry) {
+      if (entry.savedRuntimeTimescale === null) return;
+      this.runtime.timeScale = entry.savedRuntimeTimescale;
+      this._log(`Runtime timescale restored → ${entry.savedRuntimeTimescale}`);
+      entry.savedRuntimeTimescale = null;
+    }
+
+    // ─────────────────────────────────────────────────────────
     // Sublayer ordering helpers
     // ─────────────────────────────────────────────────────────
 
@@ -525,7 +570,7 @@ export default function (parentClass) {
     // Tick
     // ─────────────────────────────────────────────────────────
 
-    _onTick() {
+    _tick() {
       if (this._animatingLayers.size === 0) return;
       this._tickAnimations(this.runtime.dt * 1000);
     }
@@ -548,29 +593,29 @@ export default function (parentClass) {
       // ── Summary ──
       const activeScreen = this._focusStack.at(-1)?.layerName ?? "(none)";
       sections.push({
-        title: "UI Director — Summary",
+        title: `$${this.type.name} — Summary`,
         properties: [
-          { name: "Active screen",     value: activeScreen },
-          { name: "Stack depth",       value: this._focusStack.length },
-          { name: "Open popups",       value: this._popupStack.length },
-          { name: "Active tooltip",    value: this._activeTooltip ?? "(none)" },
-          { name: "Animating layers",  value: this._animatingLayers.size },
-          { name: "Total tracked",     value: this._layers.size },
+          { name: "$Active screen",     value: activeScreen },
+          { name: "$Stack depth",       value: this._focusStack.length },
+          { name: "$Open popups",       value: this._popupStack.length },
+          { name: "$Active tooltip",    value: this._activeTooltip ?? "(none)" },
+          { name: "$Animating layers",  value: this._animatingLayers.size },
+          { name: "$Total tracked",     value: this._layers.size },
         ],
       });
 
       // ── Settings ──
       sections.push({
-        title: "UI Director — Settings",
+        title: `$${this.type.name} — Settings`,
         properties: [
-          { name: "Container layer",        value: this._getProperty("uiContainerLayer") },
-          { name: "Default anim",           value: this._getProperty("defaultAnimType") },
-          { name: "Default duration (ms)",  value: this._getProperty("defaultAnimDuration") },
-          { name: "Default easing",         value: this._getProperty("defaultAnimEasing") },
-          { name: "Persist across layouts", value: this._getProperty("persistAcrossLayouts") },
-          { name: "Debug mode",             value: this._getProperty("debugMode") },
-          { name: "Dim layer",              value: this._getProperty("dimLayer") || "(none)" },
-          { name: "Dim opacity",            value: this._getProperty("dimOpacity") },
+          { name: "$Container layer",        value: this._getProperty("uiContainerLayer") },
+          { name: "$Default anim",           value: this._getProperty("defaultAnimType") },
+          { name: "$Default duration (ms)",  value: this._getProperty("defaultAnimDuration") },
+          { name: "$Default easing",         value: this._getProperty("defaultAnimEasing") },
+          { name: "$Persist across layouts", value: this._getProperty("persistAcrossLayouts") },
+          { name: "$Debug mode",             value: this._getProperty("debugMode") },
+          { name: "$Dim layer",              value: this._getProperty("dimLayer") || "(none)" },
+          { name: "$Dim opacity",            value: this._getProperty("dimOpacity") },
         ],
       });
 
@@ -581,11 +626,11 @@ export default function (parentClass) {
           const frame = this._focusStack[i];
           const entry = this._getEntry(frame.layerName);
           const label = i === this._focusStack.length - 1
-            ? `[${i + 1}] ${frame.layerName}  ◀ active`
-            : `[${i + 1}] ${frame.layerName}`;
+            ? `$[${i + 1}] ${frame.layerName}  ◀ active`
+            : `$[${i + 1}] ${frame.layerName}`;
           props.push({ name: label, value: entry?.state ?? "?" });
         }
-        sections.push({ title: "UI Director — Focus Stack", properties: props });
+        sections.push({ title: `$${this.type.name} — Focus Stack`, properties: props });
       }
 
       // ── Open popups ──
@@ -594,9 +639,9 @@ export default function (parentClass) {
         for (const name of this._popupStack) {
           const entry = this._getEntry(name);
           const timer = entry?.dismissTimer !== null ? "  ⏳ auto-dismiss" : "";
-          props.push({ name, value: (entry?.state ?? "?") + timer });
+          props.push({ name: `$${name}`, value: (entry?.state ?? "?") + timer });
         }
-        sections.push({ title: "UI Director — Open Popups", properties: props });
+        sections.push({ title: `$${this.type.name} — Open Popups`, properties: props });
       }
 
       // ── One section per tracked layer ──
@@ -606,34 +651,41 @@ export default function (parentClass) {
           : entry.state;
 
         const props = [
-          { name: "Role",       value: entry.role },
-          { name: "State",      value: stateStr },
-          { name: "Prev state", value: entry.prevState },
+          { name: "$Role",       value: entry.role },
+          { name: "$State",      value: stateStr },
+          { name: "$Prev state", value: entry.prevState },
         ];
 
         if (entry.role === "normal") {
-          props.push({ name: "Modal",          value: entry.isModal });
-          props.push({ name: "Mirror on back", value: entry.mirrorOnBack });
+          props.push({ name: "$Modal",          value: entry.isModal });
+          props.push({ name: "$Mirror on back", value: entry.mirrorOnBack });
         }
 
         if (entry.manageCollisions) {
-          props.push({ name: "Sync collisions", value: true });
+          props.push({ name: "$Sync collisions", value: true });
         }
 
         if (entry.animType !== null || entry.animDuration !== null || entry.animEasing !== null) {
           props.push({
-            name:  "Anim override",
+            name:  "$Anim override",
             value: `${entry.animType ?? "default"}  ${entry.animDuration ?? "default"}ms  ${entry.animEasing ?? "default"}`,
           });
         }
 
+        if (entry.runtimeTimescale !== null) {
+          props.push({ name: "$Runtime timescale (on open)", value: entry.runtimeTimescale });
+        }
+        if (entry.savedRuntimeTimescale !== null) {
+          props.push({ name: "$Runtime timescale (saved)", value: entry.savedRuntimeTimescale });
+        }
+
         if (entry.customData.size > 0) {
           for (const [k, v] of entry.customData) {
-            props.push({ name: `  data.${k}`, value: v });
+            props.push({ name: `$data.${k}`, value: v });
           }
         }
 
-        sections.push({ title: `Layer: ${entry.name}`, properties: props });
+        sections.push({ title: `$Layer: ${entry.name}`, properties: props });
       }
 
       return sections;
@@ -664,6 +716,7 @@ export default function (parentClass) {
         animElapsed: 0, animFrom: 0, animTo: 0,
         animOnComplete: null, pendingState: null,
         animBaseScrolls: null, animEffectiveType: null,
+        runtimeTimescale: null, savedRuntimeTimescale: null,
       };
       this._layers.set(layerName, entry);
       if (manageCollisions) {
@@ -798,6 +851,7 @@ export default function (parentClass) {
       this._lastChangedLayer   = layerName;
       this._lastChangedState   = "focused";
 
+      this._applyRuntimeTimescale(entry);
       this._trigger("OnLayerOpening");
       this._updateDimLayer();
 
@@ -834,7 +888,10 @@ export default function (parentClass) {
       this._updateDimLayer();
 
       this._startAnim(entry, "closing", () => {
-        if (entry) this._applyState(entry, entry.prevState);
+        if (entry) {
+          this._applyState(entry, entry.prevState);
+          this._restoreRuntimeTimescale(entry);
+        }
         this._restoreInteractiveSnapshot(frame.interactiveSnapshot);
         this._trigger("OnLayerFullyClosed");
         this._trigger("OnLayerStateChanged");
@@ -874,6 +931,7 @@ export default function (parentClass) {
       this._lastChangedLayer = layerName;
       this._lastChangedState = "visible";
 
+      this._applyRuntimeTimescale(entry);
       this._trigger("OnLayerOpening");
       this._updateDimLayer();
 
@@ -912,6 +970,7 @@ export default function (parentClass) {
         entry.state       = "hidden";
         entry.prevState   = "visible";
         this._popupStack  = this._popupStack.filter(n => n !== layerName);
+        this._restoreRuntimeTimescale(entry);
         this._updateDimLayer();
         this._trigger("OnLayerStateChanged");
         this._trigger("OnAnyLayerStateChanged");

@@ -20,6 +20,7 @@
 12. [Triggers Reference](#12-triggers-reference)
 13. [Game Use Cases](#13-game-use-cases)
 14. [C3 Debugger](#14-c3-debugger)
+15. [Timescale Control](#15-timescale-control)
 
 ---
 
@@ -107,6 +108,8 @@ With this setup, layout changes become transparent to the player. The game world
 **Deep sub-navigation with a Skip Back** - Settings -> Audio -> Advanced Audio. A single `Return to screen "Settings"` instantly collapses the entire stack back to that point, regardless of how many intermediate screens exist.
 
 **Animation-safe logic** - Layers are never interactive while animating. The `On layer fully opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
+
+**Pause menus that auto-freeze and restore the game** - `Set layer timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §15.
 
 ---
 
@@ -239,12 +242,14 @@ When you call **Navigate to screen** (or **Show Screen**):
 3. If the layer is set to block other screens, all other normal layers are made non-interactive.
 4. The layer is put in the `focused` state.
 5. A stack frame `{ layerName, savedIndex, interactiveSnapshot }` is pushed.
+6. If the layer has a managed runtime timescale configured (via `Set layer timescale`), it is applied to `runtime.timeScale` now.
 
 When you call **Return to previous screen** (or **Go Back**):
 1. The top frame is popped.
 2. The layer at that frame is hidden (with a closing animation).
 3. The saved interactive snapshot is restored on all other normal layers.
 4. The layer below in the stack is re-focused.
+5. If the closing layer had applied a managed runtime timescale, `runtime.timeScale` is restored to what it was before that layer opened.
 
 ### Multi-level navigation example
 
@@ -546,6 +551,8 @@ Action: Skip all animations                       // snap ALL animating layers i
 | **Sync collisions to layer state** `name, enabled` | Toggle automatic collision syncing for a layer - objects on the layer have collisions turned off when the layer is hidden or disabled. |
 | **Set layer input enabled** `name, enabled` | Manually override a layer's input on/off. UIDirector will not override this until the next state change. |
 | **Set layer data** `name, key, value` | Store an arbitrary string value on a layer, retrievable with `LayerData()`. |
+| **Set layer timescale** `name, instanceTimescale, runtimeTimescale` | Overrides `instance.timeScale` on every instance in the layer and sublayers right now (`instanceTimescale`, use -1 to skip). Optionally stores a global runtime timescale to auto-apply when the layer opens and auto-restore on close (`runtimeTimescale`, use -1 to clear). See §15. |
+| **Reset layer timescale** `name` | Restores all instance timescales to follow the global timescale and clears any managed runtime timescale override. |
 
 ### Focus Stack
 
@@ -711,6 +718,12 @@ Event: On start of layout
   Action: Set layer state -> "HUD", state: visible
   // HUD is visible but not on the focus stack
 
+  // Optional: freeze the game when the pause menu opens, keep menu itself animated
+  Action: Set layer timescale -> "Pause Menu", instanceTimescale: 1, runtimeTimescale: 0
+  // ↑ When "Pause Menu" opens → runtime.timeScale = 0 (game frozen)
+  //   "Pause Menu" instances still animate (their timeScale = 1)
+  //   When "Pause Menu" closes → runtime.timeScale restored automatically
+
 // ── Pause / Unpause ───────────────────────────────────────
 Event: Key "Escape" -> On pressed
   Condition: NOT Screen "Pause Menu" is the active screen
@@ -719,11 +732,13 @@ Event: Key "Escape" -> On pressed
 Event: Key "Escape" -> On pressed
   Condition: Screen "Pause Menu" is the active screen
     Action: Go back
-    // HUD interactive state is automatically restored
+    // HUD interactive state and runtime.timeScale are both automatically restored
 
 Event: Button "Resume" (in Pause Menu) -> On clicked
   Action: Go back
 ```
+
+> **Timescale note:** The `Set layer timescale` call is optional. Leave it out if you do not need the game to freeze on pause. If you do use it, no manual `Set time scale` events are needed — UIDirector applies and restores the value automatically on open/close. See §15 for full details.
 
 ---
 
@@ -1182,6 +1197,8 @@ One section per tracked layer, showing:
 - Modal flag and mirror-on-back flag (normal-role layers only)
 - Sync collisions flag (if enabled)
 - Animation override (`animType`, `animDuration`, `animEasing`) if one has been set via **Set layer animation**
+- Runtime timescale (on open) — the stored global timescale that will be applied when this layer opens (only shown if configured via **Set layer timescale**)
+- Runtime timescale (saved) — the global timescale captured just before this layer applied its override; only present while the layer is open and actively holding a timescale override
 - Custom data key/value pairs (if any have been set via **Set layer data**)
 
 ### How to use it
@@ -1193,6 +1210,83 @@ One section per tracked layer, showing:
 5. The panel updates every frame — watch the state change live as you navigate screens, open popups, and trigger animations.
 
 The debugger panel replaces the need for debug Text objects that manually read expressions like `CurrentScreen()` or `LayerState()`. Everything is already surfaced in one place.
+
+---
+
+## 15. Timescale Control
+
+UIDirector provides two ways to control timescale for UI layers:
+
+1. **Per-instance timescale** — override `instance.timeScale` on every instance in a layer (and its sublayers) so they run at a custom speed regardless of the global timescale.
+2. **Managed runtime timescale** — configure a layer so that when it opens, the global `runtime.timeScale` is automatically set to a target value, and when it closes, the previous value is automatically restored.
+
+---
+
+### Per-Instance Timescale
+
+**Action:** `Set layer timescale` (params: name, instanceTimescale, runtimeTimescale)
+
+The second parameter (`instanceTimescale`) sets `instance.timeScale` on every instance in the layer and sublayers immediately. Pass `-1` to leave instance timescales unchanged.
+
+| Scenario | Action |
+|---|---|
+| Keep UI animations running while game is paused (`runtime.timeScale = 0`) | `Set layer timescale → "MyLayer", 1, -1` |
+| Freeze a UI layer's animations temporarily | `Set layer timescale → "MyLayer", 0, -1` |
+| Run a countdown timer at double speed | `Set layer timescale → "MyLayer", 2, -1` |
+| Restore instances to follow global timescale again | `Reset layer timescale → "MyLayer"` |
+
+`Set layer timescale` applies `instance.timeScale` to every instance on the layer including instances inside sublayers (group layers are handled automatically). This is a one-time apply — call it again if new instances appear on the layer.
+
+`Reset layer timescale` calls `instance.restoreTimeScale()` on every instance, which reverts them to following the global runtime timescale, and also clears any managed runtime timescale override.
+
+---
+
+### Managed Runtime Timescale
+
+**Action:** `Set layer timescale` (third parameter: `runtimeTimescale`)
+
+The third parameter stores a global runtime timescale on the layer. UIDirector applies it when the layer opens and restores the previous value on close. Pass `-1` to clear or skip the override.
+
+Use this when opening a specific screen should freeze or slow the entire game automatically:
+
+```
+► On start of layout
+    UIDirector: Track layer "PauseMenu" as Normal
+    UIDirector: Set layer timescale → "PauseMenu", 1, 0
+    //                                              ↑  ↑
+    //                          instance=1 (menu animates)
+    //                             runtime=0 (game freezes when open)
+
+► Player presses Pause
+    UIDirector: Navigate to screen → "PauseMenu"
+    ✓ runtime.timeScale is now 0 — game is frozen
+    ✓ PauseMenu instances run at timeScale 1 — the menu still animates
+
+► Player presses Resume
+    UIDirector: Return to previous screen
+    ✓ runtime.timeScale restored to its previous value — game resumes
+```
+
+The `runtimeTimescale` value is stored on the layer. It is applied automatically when the layer opens (focus or show popup) and restored automatically when it closes (pop focus stack or hide popup).
+
+**To clear the override** so the layer no longer affects global timescale: `Set layer timescale → "MyLayer", -1, -1`
+
+---
+
+### Stacking Behaviour
+
+Managed runtime timescale stacks correctly when multiple layers with overrides open and close:
+
+```
+Start: runtime.timeScale = 1
+
+Open ScreenA (runtimeTimescale = 0)  → runtime = 0  (saved: 1)
+Open ScreenB (runtimeTimescale = 0.5) → runtime = 0.5 (saved: 0)
+Close ScreenB                        → runtime = 0  (ScreenA's value restored)
+Close ScreenA                        → runtime = 1  (original value restored)
+```
+
+Each layer saves the runtime timescale that was active when it opened, so restores are always accurate regardless of nesting depth.
 
 ---
 
