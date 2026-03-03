@@ -1,15 +1,15 @@
 <img src="./src/icon.svg" width="100" /><br>
 # UIDirector
 <i>Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip - then open, close, and navigate between them with simple actions.</i> <br>
-### Version 0.0.1.0
+### Version 0.0.1.1
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.1.0.c3addon/salmanshh_uidirector-0.0.1.0.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.1.1.c3addon/salmanshh_uidirector-0.0.1.1.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_UIDirector/releases) </sub> <br>
 
-#### What's New in 0.0.1.0
+#### What's New in 0.0.1.1
 **Added:**
-Nested screens and normal Screens support
+Add Icon
 
 
 <sub>[View full changelog](#changelog)</sub>
@@ -152,6 +152,13 @@ npm run dev
 
 ---
 ## Changelog
+
+### Version 0.0.1.1
+
+**Added:**
+Add Icon
+
+---
 
 ### Version 0.0.1.0
 
