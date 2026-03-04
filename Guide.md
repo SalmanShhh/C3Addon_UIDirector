@@ -319,7 +319,7 @@ Event: On start of layout
 | `visible` / `interactive` | Set on the group root; cascades automatically to all sublayers via C3's own layer system. |
 | Fade animation (opacity) | Applied to the group root; all sublayers fade together as a visual composite. |
 | Slide animation (scroll) | `scrollX`/`scrollY` does NOT cascade from a group root. UIDirector applies scroll to each direct sublayer individually, producing the same visual result. |
-| Collision management | Iterates all sublayers recursively. Objects at any depth have their collisions toggled correctly. |
+| Collision management | Iterates all sublayers recursively. Only instances that had collisions enabled are disabled on hide; only those same instances are re-enabled on show. Instances intentionally set to collisions-off by the developer are never affected. |
 | Z-order | The group moves as a unit. All sublayers move with it automatically. |
 
 **When to use Pattern 1:**
@@ -548,7 +548,7 @@ Action: Skip all animations                       // snap ALL animating layers i
 | **Set layer state** `name, state` | Directly set a layer's state: `visible`, `hidden`, `disabled`. |
 | **Set layer blocks other screens** `name, enabled` | Change whether a screen blocks all other screens when it becomes active. |
 | **Set layer animation** `name, type, duration, easing, mirror` | Override the animation for a specific layer. The optional `mirror` boolean reverses the close direction when going Back (slide animations only). |
-| **Sync collisions to layer state** `name, enabled` | Toggle automatic collision syncing for a layer - objects on the layer have collisions turned off when the layer is hidden or disabled. |
+| **Sync collisions to layer state** `name, enabled` | Toggle automatic collision syncing for a layer. When the layer is hidden or non-interactive, UIDirector disables collisions on instances that had them enabled. On restore, only those instances are re-enabled — instances that were already collisions-off are never touched. |
 | **Set layer input enabled** `name, enabled` | Manually override a layer's input on/off. UIDirector will not override this until the next state change. |
 | **Set layer data** `name, key, value` | Store an arbitrary string value on a layer, retrievable with `LayerData()`. |
 | **Set layer timescale** `name, instanceTimescale, runtimeTimescale` | Overrides `instance.timeScale` on every instance in the layer and sublayers right now (`instanceTimescale`, use -1 to skip). Optionally stores a global runtime timescale to auto-apply when the layer opens and auto-restore on close (`runtimeTimescale`, use -1 to clear). See §15. |
@@ -867,7 +867,7 @@ Event: On start of layout
   //                                                           with the interactive state
 ```
 
-Now when the Pause Menu focuses (and the HUD becomes non-interactive), `collisionsEnabled` on every instance on the HUD layer is automatically set to `false`. Gameplay collision checks against HUD objects stop. When the HUD becomes interactive again, collisions are restored.
+Now when the Pause Menu focuses (and the HUD becomes non-interactive), UIDirector disables `collisionsEnabled` on every instance that **currently has collisions on**. Instances that were already set to `collisionsEnabled = false` by the developer are left untouched. When the HUD becomes interactive again, only the instances UIDirector disabled are restored — nothing else is changed.
 
 ---
 
