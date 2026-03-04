@@ -419,11 +419,32 @@ export default function (parentClass) {
 
     _setLayerCollisions(entry, enabled) {
       if (!entry.manageCollisions) return;
-      for (const inst of this._getAllInstancesOnLayer(entry.ref)) {
-        if (typeof inst.collisionsEnabled === "boolean") {
-          inst.collisionsEnabled = enabled;
+
+      if (!enabled) {
+        // Save only the instances that currently have collisions on, then disable them.
+        // This ensures we never re-enable something that was intentionally off.
+        const toDisable = this._getAllInstancesOnLayer(entry.ref).filter(
+          inst => typeof inst.collisionsEnabled === "boolean" && inst.collisionsEnabled
+        );
+        entry._savedCollisions = new Set(toDisable);
+        for (const inst of toDisable) {
+          inst.collisionsEnabled = false;
         }
+      } else {
+        // Re-enable only the instances we previously disabled.
+        // Intersect with currently live instances to guard against instances destroyed in the interim.
+        if (entry._savedCollisions) {
+          const live = new Set(this._getAllInstancesOnLayer(entry.ref));
+          for (const inst of entry._savedCollisions) {
+            if (live.has(inst) && typeof inst.collisionsEnabled === "boolean") {
+              inst.collisionsEnabled = true;
+            }
+          }
+          entry._savedCollisions = null;
+        }
+        // If no saved state: do nothing — instances already have their intended state.
       }
+
       this._log(`Collisions ${enabled ? "on" : "off"}: ${entry.name}`);
     }
 
@@ -717,6 +738,7 @@ export default function (parentClass) {
         animOnComplete: null, pendingState: null,
         animBaseScrolls: null, animEffectiveType: null,
         runtimeTimescale: null, savedRuntimeTimescale: null,
+        _savedCollisions: null,
       };
       this._layers.set(layerName, entry);
       if (manageCollisions) {

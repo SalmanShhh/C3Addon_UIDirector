@@ -1,15 +1,15 @@
 <img src="./src/icon.svg" width="100" /><br>
 # UIDirector
 <i>Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip - then open, close, and navigate between them with simple actions.</i> <br>
-### Version 0.0.1.2
+### Version 0.0.2.0
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.1.2.c3addon/salmanshh_uidirector-0.0.1.2.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.2.0.c3addon/salmanshh_uidirector-0.0.2.0.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_UIDirector/releases) </sub> <br>
 
-#### What's New in 0.0.1.2
+#### What's New in 0.0.2.0
 **Added:**
-update Icon
+Collision Toggle Fix - Only Toggle Instances That Were Already Enabled
 
 
 <sub>[View full changelog](#changelog)</sub>
@@ -152,6 +152,13 @@ npm run dev
 
 ---
 ## Changelog
+
+### Version 0.0.2.0
+
+**Added:**
+Collision Toggle Fix - Only Toggle Instances That Were Already Enabled
+
+---
 
 ### Version 0.0.1.2
 

@@ -23,5 +23,10 @@
     "added": "update Icon",
     "changed": "",
     "fixed": ""
+  },
+  "0.0.2.0": {
+    "added": "Collision Toggle Fix - Only Toggle Instances That Were Already Enabled",
+    "changed": "",
+    "fixed": ""
   }
 }
