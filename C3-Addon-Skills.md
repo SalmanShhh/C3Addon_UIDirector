@@ -23,7 +23,8 @@ Practical knowledge for building C3 plugins and behaviors with the **CAW (Constr
 15. [Gotchas and Patterns](#15-gotchas-and-patterns)
 16. [Behavior-Specific Patterns](#16-behavior-specific-patterns)
 17. [Advanced Runtime Scripting API](#17-advanced-runtime-scripting-api)
-18. [SPOT Pattern — Shared State Across Behavior Instances](#18-spot-pattern--shared-state-across-behavior-instances)
+18. [Index-Based Collection Iteration Pattern](#18-index-based-collection-iteration-pattern)
+19. [SPOT Pattern — Shared State Across Behavior Instances](#19-spot-pattern--shared-state-across-behavior-instances)
 
 ---
 
@@ -1051,7 +1052,108 @@ for (const inst of this.instance.runtime.objects.MyObjectName.getAllInstances())
 
 ---
 
-## 18. SPOT Pattern — Shared State Across Behavior Instances
+## 18. Index-Based Collection Iteration Pattern
+
+When an addon exposes a variable-length list of items (abilities, tags, waypoints, etc.), the idiomatic C3 event sheet iteration is **Count + Index** — not a comma-separated string with `tokencount`/`tokenat`.
+
+### The pattern
+
+Expose two ACEs:
+
+```js
+// Expression: count
+expression("MyCategory", "CountItems", {
+  returnType: "number",
+  description: "Number of items in the list.",
+  params: [],
+}, function () {
+  return this._items.size;
+});
+
+// Expression: item by index
+expression("MyCategory", "GetItemByIndex", {
+  returnType: "string",
+  description: "Get the item ID at the given 0-based index. Returns empty string if out of bounds.",
+  params: [
+    { id: "index", name: "Index", desc: "0-based position.", type: "number" },
+  ],
+}, function (index) {
+  return Array.from(this._items.keys())[index] ?? "";
+});
+```
+
+In the event sheet the user then writes a standard `Repeat` loop:
+
+```
+Repeat MyBehavior.CountItems() times
+  Local: item = MyBehavior.GetItemByIndex(loopindex)
+  → actions using item
+```
+
+`loopindex` is a built-in C3 expression that equals the current iteration (0, 1, 2, …).
+
+### Variant: filtered list by tag
+
+When the list is filtered by a runtime value (e.g. abilities with a specific tag), the index expression accepts the filter as a parameter:
+
+```js
+// Expression: count with filter
+expression("Tags", "CountAbilitiesByTag", {
+  returnType: "number",
+  params: [{ id: "tag", name: "Tag", type: "string" }],
+}, function (tag) {
+  return this._abilitiesWithTag(tag).length;
+});
+
+// Expression: item by index with filter
+expression("Tags", "GetAbilityByTagIndex", {
+  returnType: "string",
+  params: [
+    { id: "tag",   name: "Tag",   type: "string" },
+    { id: "index", name: "Index", type: "number" },
+  ],
+}, function (tag, index) {
+  return this._abilitiesWithTag(tag)[index] ?? "";
+});
+```
+
+Event sheet usage:
+
+```
+Repeat Player.SimpleAbilities.CountAbilitiesByTag("offensive") times
+  Local: abilityID = Player.SimpleAbilities.GetAbilityByTagIndex("offensive", loopindex)
+  → Condition: Is ability ready abilityID
+  → Action: Activate ability abilityID
+```
+
+### Why not a comma-separated string?
+
+| Approach | Pros | Cons |
+|---|---|---|
+| `tokencount`/`tokenat` on a string | No extra expression needed | Non-idiomatic; string parsing is fragile; `tokenat` is O(n²) on large lists |
+| **Count + Index** (this pattern) | C3-native `Repeat` loop; clean `loopindex`; O(1) per access | Requires two expressions instead of one |
+
+The Count + Index pattern also avoids edge cases with ability IDs that contain commas.
+
+### Internal helper
+
+The internal JS helper that both expressions share can be any function returning an ordered array:
+
+```js
+_abilitiesWithTag(tag) {
+  const result = [];
+  for (const [id, ability] of this._abilities) {
+    if (ability.tags && ability.tags.has(tag)) result.push(id);
+  }
+  return result;
+}
+```
+
+For very large collections, cache this result per-frame and invalidate when the collection changes.
+
+---
+
+## 19. SPOT Pattern — Shared State Across Behavior Instances
 
 > **This is a last-resort workaround, not a general pattern.** Before using it, ask whether a separate plugin with `IsSingleGlobal: true` would serve instead — that is the clean C3-native answer for singletons and avoids all of the complexity below.
 
