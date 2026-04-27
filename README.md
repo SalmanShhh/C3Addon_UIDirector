@@ -1,16 +1,25 @@
 <img src="./src/icon.svg" width="100" /><br>
 # UIDirector
 <i>Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip - then open, close, and navigate between them with simple actions.</i> <br>
-### Version 0.0.2.0
+### Version 0.0.3.0
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.2.0.c3addon/salmanshh_uidirector-0.0.2.0.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.3.0.c3addon/salmanshh_uidirector-0.0.3.0.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_UIDirector/releases) </sub> <br>
 
-#### What's New in 0.0.2.0
+#### What's New in 0.0.3.0
 **Added:**
-Collision Toggle Fix - Only Toggle Instances That Were Already Enabled
+- (CountTrackedLayers GetTrackedLayerByIndex) expressions for iterating tracked layers in a Repeat loop
+- "_combo(value, keys)" helper on the instance for safe index-to-string mapping of combo params
+- Debug mode can be toggled.
 
+**Changed:**
+- Fix Layer visibility checks.
+- fix Parent layering reliability.
+- reduce per-frame overhead when no animations are running (stop ticking)
+
+**Fixed:**
+- Fix ACEs that were silently failing.
 
 <sub>[View full changelog](#changelog)</sub>
 
@@ -144,6 +153,8 @@ npm run dev
 | PreviousLayerState | Returns the state a layer was in before its last change. Use to restore a layer after a temporary change. | string | Layer name *(string)* <br> | 
 | TopPopup | Returns the name of the topmost open popup, or empty if none. Use to check which dialog the player is looking at. | string |  | 
 | ActiveTooltip | Returns the name of the visible tooltip, or empty if none. Use for custom logic based on which tooltip is showing. | string |  | 
+| CountTrackedLayers | Returns the total number of layers currently tracked by UIDirector. Use with GetTrackedLayerByIndex in a Repeat loop to iterate all tracked layers. | number |  | 
+| GetTrackedLayerByIndex | Returns the name of a tracked layer at the given zero-based index. Use with CountTrackedLayers in a Repeat loop to iterate all tracked layers. | string | Index *(number)* <br> | 
 | LastChangedLayer | Returns which layer most recently changed state. Use inside state-changed triggers to know which layer fired the event. | string |  | 
 | LastChangedState | Returns the new state of the most recently changed layer. Use inside state-changed triggers to react differently to 'hidden' vs 'visible'. | string |  | 
 | LayerAnimDirection | Returns 'opening', 'closing', or empty. Use to play different sounds based on whether a screen is coming in or going out. | string | Layer name *(string)* <br> | 
@@ -152,6 +163,22 @@ npm run dev
 
 ---
 ## Changelog
+
+### Version 0.0.3.0
+
+**Added:**
+- (CountTrackedLayers GetTrackedLayerByIndex) expressions for iterating tracked layers in a Repeat loop
+- "_combo(value, keys)" helper on the instance for safe index-to-string mapping of combo params
+- Debug mode can be toggled.
+
+**Changed:**
+- Fix Layer visibility checks.
+- fix Parent layering reliability.
+- reduce per-frame overhead when no animations are running (stop ticking)
+
+**Fixed:**
+- Fix ACEs that were silently failing.
+---
 
 ### Version 0.0.2.0
 

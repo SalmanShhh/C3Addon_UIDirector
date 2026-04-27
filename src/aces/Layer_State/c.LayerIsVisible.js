@@ -21,5 +21,5 @@ export const config = {
 export const expose = false;
 
 export default function (layerName) {
-  return this._layers.get(layerName)?.ref?.visible ?? false;
+  return this._layers.get(layerName)?.ref?.isSelfAndParentsVisible ?? false;
 }

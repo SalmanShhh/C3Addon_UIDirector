@@ -42,5 +42,6 @@ export const config = {
 export const expose = true;
 
 export default function (layerName, role, isModal, manageCollisions) {
-  this._actTrackLayer(layerName, role, isModal, manageCollisions);
+  const roleKeys = ["normal", "popup", "tooltip"];
+  this._actTrackLayer(layerName, this._combo(role, roleKeys), isModal, manageCollisions);
 }

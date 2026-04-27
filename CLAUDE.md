@@ -323,16 +323,24 @@ PROPERTY_TYPE.INFO; // Info display
 A layer reference (`ILayer`) returned by `this.runtime.layout.getLayer("name")`.
 
 ```javascript
-layer.visible      // boolean — get/set: shows/hides the layer
-layer.interactive  // boolean — get/set: enables/disables input
+layer.isVisible              // boolean — get/set: this layer's own visibility
+layer.isSelfAndParentsVisible // boolean — read-only: true if this layer AND all parents are visible
+layer.isInteractive              // boolean — get/set: this layer's own interactive state
+layer.isSelfAndParentsInteractive // boolean — read-only: true if this layer AND all parents are interactive
 layer.opacity      // number 0–1 — get/set: layer transparency
+layer.isTransparent   // boolean — background color ignored when true
+layer.backgroundColor // [r, g, b] (0–1 each) — background color
 layer.scrollX      // number — horizontal scroll offset in px
 layer.scrollY      // number — vertical scroll offset in px
 layer.name         // string — layer name (read-only)
+layer.index        // number — zero-based Z-order index (bottom = 0, read-only)
+layer.layout       // ILayout — the layout this layer belongs to
+layer.parentLayer  // ILayer | null — direct parent, null if top-level
 
-// Group layer children — check both, different C3 builds use different names
-for (const sub of layer.subLayers?.() ?? layer.layers?.() ?? []) { ... }
-for (const parent of layer.parentLayers()) { ... }  // walk up parent chain
+// Group layer children
+layer.subLayers()    // Iterator — direct children in Z order
+layer.allSubLayers() // Iterator — ALL descendants recursively in Z order (preferred for deep search)
+layer.parentLayers() // Iterator — walks up the parent chain
 
 // Z-order — feature-detect before calling, not available on all C3 builds
 this.runtime.layout.moveLayerToIndex(layerRef, index);

@@ -28,5 +28,10 @@
     "added": "Collision Toggle Fix - Only Toggle Instances That Were Already Enabled",
     "changed": "",
     "fixed": ""
+  },
+  "0.0.3.0": {
+    "added": "- (CountTrackedLayers GetTrackedLayerByIndex) expressions for iterating tracked layers in a Repeat loop\n- \"_combo(value, keys)\" helper on the instance for safe index-to-string mapping of combo params\n- Debug mode can be toggled.",
+    "changed": "- Fix Layer visibility checks.\n- fix Parent layering reliability.\n- reduce per-frame overhead when no animations are running (stop ticking)",
+    "fixed": "- Fix ACEs that were silently failing."
   }
 }

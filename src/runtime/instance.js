@@ -35,16 +35,10 @@ export default function (parentClass) {
       } else {
         this._props = {};
       }
-    }
 
-    // ─────────────────────────────────────────────────────────
-    // onCreate - called by C3 after the instance is fully set up.
-    // Safe to access this.runtime, layout, and layer APIs here.
-    // ─────────────────────────────────────────────────────────
-    onCreate() {
-      this._debug              = this._getProperty("debugMode");
-      this._containerRef       = null;
-      this._dimLayerRef        = null;
+      // Data structures initialised here so they exist before onCreate() —
+      // C3 may call ACE actions or tick before onCreate() fires.
+      this._debug              = this._props.debugMode ?? false;
       this._layers             = new Map();
       this._focusStack         = [];
       this._popupStack         = [];
@@ -54,8 +48,23 @@ export default function (parentClass) {
       this._lastChangedState   = "";
       this._lastFocusedLayer   = "";
       this._lastUnfocusedLayer = "";
+      this._containerRef       = null;
+      this._dimLayerRef        = null;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // onCreate - called by C3 after the instance is fully set up.
+    // Safe to access this.runtime, layout, and layer APIs here.
+    // ─────────────────────────────────────────────────────────
+    onCreate() {
 
       this._containerRef = this._resolveContainer();
+
+      // Clear the cached dim layer ref on layout change so _resolveDimLayer()
+      // fetches a fresh reference from the new layout (IsSingleGlobal stale-ref gotcha).
+      this.runtime.addEventListener("beforelayout", () => {
+        this._dimLayerRef = null;
+      });
 
       if (this._getProperty("persistAcrossLayouts")) {
         const saved = globalThis.__uimanager_state;
@@ -116,6 +125,10 @@ export default function (parentClass) {
       return this._props[name];
     }
 
+    _combo(value, keys) {
+      return typeof value === "number" ? (keys[value] ?? keys[0]) : value;
+    }
+
     // ─────────────────────────────────────────────────────────
     // Layer resolution helpers
     // ─────────────────────────────────────────────────────────
@@ -127,17 +140,42 @@ export default function (parentClass) {
       return ref ?? null;
     }
 
+    // Always returns a fresh container reference from the current layout.
+    // Use this instead of this._containerRef anywhere Z-order or sublayer iteration is needed.
+    _getContainerRef() {
+      return this.runtime.layout.getLayer(this._getProperty("uiContainerLayer")) ?? null;
+    }
+
     _resolveLayer(name) {
-      if (!this._containerRef) return null;
-      // Option A - getLayer may do a deep search already:
-      if (typeof this._containerRef.getLayer === "function") {
-        return this._containerRef.getLayer(name) ?? null;
+      // Always resolve from the current layout — handles IsSingleGlobal layout changes
+      // and avoids stale _containerRef references after a layout switch.
+      const containerName = this._getProperty("uiContainerLayer");
+      const containerRef  = this.runtime.layout.getLayer(containerName);
+      if (!containerRef) {
+        this._log(`Container layer "${containerName}" not found — check the UI Container Layer property`);
+        return null;
       }
-      // Option B - recursive manual search through all descendants:
-      return this._resolveLayerInGroup(name, this._containerRef);
+
+      // Option A: use getLayer() if available, but only accept non-null results.
+      // getLayer() may only search direct children; fall through to recursive if it misses.
+      if (typeof containerRef.getLayer === "function") {
+        const ref = containerRef.getLayer(name);
+        if (ref) return ref;
+      }
+
+      // Option B: recursive manual search through all descendants.
+      return this._resolveLayerInGroup(name, containerRef);
     }
 
     _resolveLayerInGroup(name, groupRef) {
+      // allSubLayers() iterates all descendants recursively — use it when available.
+      if (typeof groupRef.allSubLayers === "function") {
+        for (const layer of groupRef.allSubLayers()) {
+          if (layer.name === name) return layer;
+        }
+        return null;
+      }
+      // Fallback: manual recursive descent via direct sublayers.
       for (const layer of this._getDirectSublayers(groupRef)) {
         if (layer.name === name) return layer;
         const found = this._resolveLayerInGroup(name, layer);
@@ -161,8 +199,8 @@ export default function (parentClass) {
       const ref = this._resolveLayer(name);
       if (ref) {
         this._dimLayerRef = ref;
-        ref.visible     = false;
-        ref.interactive = false;
+        ref.isVisible     = false;
+        ref.isInteractive = false;
         ref.opacity     = 1;
       }
       return this._dimLayerRef ?? null;
@@ -178,7 +216,7 @@ export default function (parentClass) {
       const hasFocusedModal = topEntry?.isModal === true;
 
       const shouldDim = hasPopup || hasFocusedModal;
-      dimRef.visible  = shouldDim;
+      dimRef.isVisible  = shouldDim;
       dimRef.opacity  = shouldDim ? (this._getProperty("dimOpacity") ?? 0.5) : 1;
     }
 
@@ -205,7 +243,16 @@ export default function (parentClass) {
     _getContainerDirectChild(layerRef) {
       // If this layer is already a direct child of the container, return it.
       if (this._getSublayerIndex(layerRef) !== -1) return layerRef;
-      // Walk up parent layers until we find one that is a direct child.
+      // Walk up parent chain - prefer parentLayer property (direct access), fall back to parentLayers() iterator.
+      if (layerRef.parentLayer !== undefined) {
+        let current = layerRef;
+        while (current.parentLayer != null) {
+          const parent = current.parentLayer;
+          if (this._getSublayerIndex(parent) !== -1) return parent;
+          current = parent;
+        }
+        return layerRef;
+      }
       if (typeof layerRef.parentLayers === "function") {
         for (const parent of layerRef.parentLayers()) {
           if (this._getSublayerIndex(parent) !== -1) return parent;
@@ -341,13 +388,14 @@ export default function (parentClass) {
       entry.animTo        = to;
       entry.animOnComplete = onComplete;
 
-      entry.ref.visible     = true;
-      entry.ref.interactive = false;
+      entry.ref.isVisible     = true;
+      entry.ref.isInteractive = false;
       this._setLayerCollisions(entry, false);
 
       this._applyAnimValue(entry, effectiveType, from);
+      this._setTicking(true);
       this._animatingLayers.add(entry.name);
-      this._log(`Anim start: ${entry.name} ${dir}`);
+      this._log(`Anim start: ${entry.name} ${dir}`);  
     }
 
     _completeAnim(entry) {
@@ -394,23 +442,23 @@ export default function (parentClass) {
     _applyState(entry, state) {
       switch (state) {
         case "visible":
-          entry.ref.visible     = true;
-          entry.ref.interactive = true;
+          entry.ref.isVisible     = true;
+          entry.ref.isInteractive = true;
           this._setLayerCollisions(entry, true);
           break;
         case "hidden":
-          entry.ref.visible     = false;
-          entry.ref.interactive = false;
+          entry.ref.isVisible     = false;
+          entry.ref.isInteractive = false;
           this._setLayerCollisions(entry, false);
           break;
         case "disabled":
-          entry.ref.visible     = true;
-          entry.ref.interactive = false;
+          entry.ref.isVisible     = true;
+          entry.ref.isInteractive = false;
           this._setLayerCollisions(entry, false);
           break;
         case "focused":
-          entry.ref.visible     = true;
-          entry.ref.interactive = true;
+          entry.ref.isVisible     = true;
+          entry.ref.isInteractive = true;
           this._setLayerCollisions(entry, true);
           break;
       }
@@ -510,8 +558,10 @@ export default function (parentClass) {
     // ─────────────────────────────────────────────────────────
 
     _getSublayerIndex(ref) {
+      const containerRef = this._getContainerRef();
+      if (!containerRef) return -1;
       let i = 0;
-      for (const layer of this._containerRef.layers()) {
+      for (const layer of this._getDirectSublayers(containerRef)) {
         if (layer === ref) return i;
         i++;
       }
@@ -519,9 +569,9 @@ export default function (parentClass) {
     }
 
     _getContainerLayerCount() {
-      let count = 0;
-      for (const _ of this._containerRef.layers()) count++;
-      return count;
+      const containerRef = this._getContainerRef();
+      if (!containerRef) return 0;
+      return this._getDirectSublayers(containerRef).length;
     }
 
     _getContainerTopIndex() {
@@ -559,8 +609,9 @@ export default function (parentClass) {
         this.runtime.layout.moveLayerToIndex(ref, targetIndex);
         return;
       }
-      if (typeof this._containerRef.moveLayerToIndex === "function") {
-        this._containerRef.moveLayerToIndex(ref, targetIndex);
+      const containerRef = this._getContainerRef();
+      if (containerRef && typeof containerRef.moveLayerToIndex === "function") {
+        containerRef.moveLayerToIndex(ref, targetIndex);
         return;
       }
       this._log("WARNING: moveLayerToIndex not available - Z-order reordering disabled");
@@ -574,7 +625,7 @@ export default function (parentClass) {
       const snap = new Map();
       for (const entry of this._layers.values()) {
         if (entry.role === "normal") {
-          snap.set(entry.name, entry.ref?.interactive ?? false);
+          snap.set(entry.name, entry.ref?.isInteractive ?? false);
         }
       }
       return snap;
@@ -583,7 +634,7 @@ export default function (parentClass) {
     _restoreInteractiveSnapshot(snapshot) {
       for (const [name, wasInteractive] of snapshot) {
         const entry = this._getEntry(name);
-        if (entry?.ref) entry.ref.interactive = wasInteractive;
+        if (entry?.ref) entry.ref.isInteractive = wasInteractive;
       }
     }
 
@@ -592,7 +643,11 @@ export default function (parentClass) {
     // ─────────────────────────────────────────────────────────
 
     _tick() {
-      if (this._animatingLayers.size === 0) return;
+      if (!this._ready) this._ready = true;  // set on first tick so the debugger knows C3 is fully initialised
+      if (this._animatingLayers.size === 0) {
+        this._setTicking(false);
+        return;
+      }
       this._tickAnimations(this.runtime.dt * 1000);
     }
 
@@ -609,34 +664,27 @@ export default function (parentClass) {
     // ─────────────────────────────────────────────────────────
 
     _getDebuggerProperties() {
+      // Guard: wait until the first tick after onCreate() so C3 is fully initialised.
+      if (!this._ready) return [];
+
+      const typeName = this.type?.name ?? "UIDirector";
       const sections = [];
+
+      try {
 
       // ── Summary ──
       const activeScreen = this._focusStack.at(-1)?.layerName ?? "(none)";
       sections.push({
-        title: `$${this.type.name} — Summary`,
+        title: `$${typeName} — Summary`,
         properties: [
-          { name: "$Active screen",     value: activeScreen },
-          { name: "$Stack depth",       value: this._focusStack.length },
-          { name: "$Open popups",       value: this._popupStack.length },
-          { name: "$Active tooltip",    value: this._activeTooltip ?? "(none)" },
-          { name: "$Animating layers",  value: this._animatingLayers.size },
-          { name: "$Total tracked",     value: this._layers.size },
-        ],
-      });
-
-      // ── Settings ──
-      sections.push({
-        title: `$${this.type.name} — Settings`,
-        properties: [
-          { name: "$Container layer",        value: this._getProperty("uiContainerLayer") },
-          { name: "$Default anim",           value: this._getProperty("defaultAnimType") },
-          { name: "$Default duration (ms)",  value: this._getProperty("defaultAnimDuration") },
-          { name: "$Default easing",         value: this._getProperty("defaultAnimEasing") },
-          { name: "$Persist across layouts", value: this._getProperty("persistAcrossLayouts") },
-          { name: "$Debug mode",             value: this._getProperty("debugMode") },
-          { name: "$Dim layer",              value: this._getProperty("dimLayer") || "(none)" },
-          { name: "$Dim opacity",            value: this._getProperty("dimOpacity") },
+          { name: "$Active screen",      value: activeScreen },
+          { name: "$Stack depth",        value: this._focusStack.length },
+          { name: "$Open popups",        value: this._popupStack.length },
+          { name: "$Active tooltip",     value: this._activeTooltip ?? "(none)" },
+          { name: "$Animating layers",   value: this._animatingLayers.size },
+          { name: "$Runtime timescale",  value: this.runtime.timeScale },
+          { name: "$Total tracked",      value: this._layers.size },
+          { name: "$Debug mode",         value: this._debug, onedit: v => { this._debug = !!v; } },
         ],
       });
 
@@ -651,7 +699,7 @@ export default function (parentClass) {
             : `$[${i + 1}] ${frame.layerName}`;
           props.push({ name: label, value: entry?.state ?? "?" });
         }
-        sections.push({ title: `$${this.type.name} — Focus Stack`, properties: props });
+        sections.push({ title: `$${typeName} — Focus Stack`, properties: props });
       }
 
       // ── Open popups ──
@@ -662,7 +710,7 @@ export default function (parentClass) {
           const timer = entry?.dismissTimer !== null ? "  ⏳ auto-dismiss" : "";
           props.push({ name: `$${name}`, value: (entry?.state ?? "?") + timer });
         }
-        sections.push({ title: `$${this.type.name} — Open Popups`, properties: props });
+        sections.push({ title: `$${typeName} — Open Popups`, properties: props });
       }
 
       // ── One section per tracked layer ──
@@ -709,6 +757,8 @@ export default function (parentClass) {
         sections.push({ title: `$Layer: ${entry.name}`, properties: props });
       }
 
+      } catch (e) { console.error("[UIDirector] _getDebuggerProperties error:", e); }
+
       return sections;
     }
 
@@ -742,7 +792,7 @@ export default function (parentClass) {
       };
       this._layers.set(layerName, entry);
       if (manageCollisions) {
-        this._setLayerCollisions(entry, entry.ref.interactive);
+        this._setLayerCollisions(entry, entry.ref.isInteractive);
       }
       this._log(`Tracked layer ${layerName} as ${role}`);
     }
@@ -788,7 +838,7 @@ export default function (parentClass) {
         });
       } else if ((state === "hidden" || state === "disabled") && config.type !== "none") {
         entry.pendingState = state;
-        entry.ref.interactive = false;
+        entry.ref.isInteractive = false;
         this._setLayerCollisions(entry, false);
         this._trigger("OnLayerClosing");
         this._startAnim(entry, "closing", () => {
@@ -825,7 +875,7 @@ export default function (parentClass) {
       if (!entry) return;
       entry.manageCollisions = enabled;
       if (enabled) {
-        this._setLayerCollisions(entry, entry.ref.interactive);
+        this._setLayerCollisions(entry, entry.ref.isInteractive);
       }
       this._log(`Set layer ${layerName} manage collisions: ${enabled}`);
     }
@@ -833,7 +883,7 @@ export default function (parentClass) {
     _actSetLayerInteractable(layerName, enable) {
       const entry = this._getEntry(layerName);
       if (!entry) return;
-      entry.ref.interactive = enable;
+      entry.ref.isInteractive = enable;
       this._log(`Set layer ${layerName} interactable: ${enable}`);
     }
 
@@ -862,7 +912,7 @@ export default function (parentClass) {
       if (entry.isModal) {
         for (const e of this._layers.values()) {
           if (e.role === "normal" && e.name !== layerName) {
-            e.ref.interactive = false;
+            e.ref.isInteractive = false;
             this._setLayerCollisions(e, false);
           }
         }
@@ -902,7 +952,7 @@ export default function (parentClass) {
       if (entry?.ref) {
         const containerAncestor = this._getContainerDirectChild(entry.ref);
         this._moveSublayerToIndex(containerAncestor, frame.savedIndex);
-        entry.ref.interactive = false;
+        entry.ref.isInteractive = false;
         this._setLayerCollisions(entry, false);
       }
 
@@ -958,8 +1008,8 @@ export default function (parentClass) {
       this._updateDimLayer();
 
       this._startAnim(entry, "opening", () => {
-        entry.ref.visible     = true;
-        entry.ref.interactive = true;
+        entry.ref.isVisible     = true;
+        entry.ref.isInteractive = true;
         this._setLayerCollisions(entry, true);
         entry.state = "visible";
         this._trigger("OnLayerStateChanged");
@@ -977,7 +1027,7 @@ export default function (parentClass) {
         entry.dismissTimer = null;
       }
 
-      entry.ref.interactive = false;
+      entry.ref.isInteractive = false;
       this._setLayerCollisions(entry, false);
       entry.pendingState = "hidden";
 
@@ -988,7 +1038,7 @@ export default function (parentClass) {
       this._updateDimLayer();
 
       this._startAnim(entry, "closing", () => {
-        entry.ref.visible = false;
+        entry.ref.isVisible = false;
         entry.state       = "hidden";
         entry.prevState   = "visible";
         this._popupStack  = this._popupStack.filter(n => n !== layerName);
@@ -1009,8 +1059,8 @@ export default function (parentClass) {
 
       this._moveSublayerToIndex(this._getContainerDirectChild(entry.ref), this._getContainerTopIndex());
 
-      entry.ref.visible     = true;
-      entry.ref.interactive = false;
+      entry.ref.isVisible     = true;
+      entry.ref.isInteractive = false;
       this._setLayerCollisions(entry, false);
       entry.prevState = entry.state;
       entry.state     = "visible";
@@ -1027,7 +1077,7 @@ export default function (parentClass) {
       const entry = this._getEntry(layerName);
       if (!entry || entry.role !== "tooltip") return;
 
-      entry.ref.visible = false;
+      entry.ref.isVisible = false;
       entry.prevState   = entry.state;
       entry.state       = "hidden";
       if (this._activeTooltip === layerName) this._activeTooltip = null;

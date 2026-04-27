@@ -62,5 +62,7 @@ export const config = {
 export const expose = true;
 
 export default function (layerName, type, duration, easing, mirrorOnBack) {
-  this._actSetLayerAnimation(layerName, type, duration, easing, mirrorOnBack);
+  const animTypeKeys = ["fade", "slideLeft", "slideRight", "slideUp", "slideDown", "none"];
+  const easingKeys   = ["linear", "easeIn", "easeOut", "easeInOut"];
+  this._actSetLayerAnimation(layerName, this._combo(type, animTypeKeys), duration, this._combo(easing, easingKeys), mirrorOnBack);
 }

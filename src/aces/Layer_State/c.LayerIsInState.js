@@ -34,5 +34,6 @@ export const config = {
 export const expose = false;
 
 export default function (layerName, state) {
-  return (this._layers.get(layerName)?.state ?? "") === state;
+  const stateKeys = ["visible", "hidden", "disabled", "focused"];
+  return (this._layers.get(layerName)?.state ?? "") === this._combo(state, stateKeys);
 }

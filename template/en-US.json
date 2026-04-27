@@ -854,6 +854,21 @@
             "description": "Returns the name of the visible tooltip, or empty if none. Use for custom logic based on which tooltip is showing.",
             "params": {}
           },
+          "CountTrackedLayers": {
+            "translated-name": "CountTrackedLayers",
+            "description": "Returns the total number of layers currently tracked by UIDirector. Use with GetTrackedLayerByIndex in a Repeat loop to iterate all tracked layers.",
+            "params": {}
+          },
+          "GetTrackedLayerByIndex": {
+            "translated-name": "GetTrackedLayerByIndex",
+            "description": "Returns the name of a tracked layer at the given zero-based index. Use with CountTrackedLayers in a Repeat loop to iterate all tracked layers.",
+            "params": {
+              "index": {
+                "name": "Index",
+                "desc": "Zero-based index of the tracked layer (0 = first tracked, CountTrackedLayers - 1 = last)."
+              }
+            }
+          },
           "LastChangedLayer": {
             "translated-name": "LastChangedLayer",
             "description": "Returns which layer most recently changed state. Use inside state-changed triggers to know which layer fired the event.",

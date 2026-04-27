@@ -597,7 +597,7 @@ Action: Skip all animations                       // snap ALL animating layers i
 |---|---|
 | **Layer is tracked** `name` | True if the layer has been registered with UIDirector. |
 | **Layer is in state** `name, state` | True if the layer is currently in the given state. |
-| **Layer is visible** `name` | True if the layer's state is `visible` or `focused`. |
+| **Layer is visible** `name` | True if the layer is visible AND all of its parent group layers are also visible. Returns false if the layer's own `visible` flag is true but a parent group is hidden. |
 | **Layer accepts input** `name` | True if `layer.interactive` is currently true. |
 | **Layer blocks other screens** `name` | True if the layer is configured to block all other screens when active. |
 | **Layer syncs collisions** `name` | True if collision syncing is enabled for the layer. |
@@ -631,6 +631,8 @@ Action: Skip all animations                       // snap ALL animating layers i
 | `LastChangedState()` | string | The new state the most recently changed layer transitioned to. Use inside trigger events. |
 | `LayerAnimProgress("name")` | number | Animation progress from `0` (start) to `1` (complete). |
 | `LayerAnimDirection("name")` | string | `"opening"`, `"closing"`, or `""` when not animating. |
+| `CountTrackedLayers()` | number | Total number of layers currently registered with UIDirector. Use with `GetTrackedLayerByIndex` in a `Repeat` loop to iterate all tracked layers. |
+| `GetTrackedLayerByIndex(n)` | string | Name of the tracked layer at zero-based index `n`. Returns `""` if out of range. Use inside a `Repeat CountTrackedLayers() times` loop with `loopindex` to enumerate all tracked layers. |
 
 ---
 
@@ -1175,6 +1177,7 @@ A quick overview of the most important state at a glance.
 | Active tooltip | Name of the visible tooltip, or `(none)` |
 | Animating layers | Number of layers currently mid-transition |
 | Total tracked | Total number of layers registered with UIDirector |
+| Debug mode | Whether debug logging is active — **click to toggle live** without restarting the preview |}
 
 **UI Director — Settings**
 

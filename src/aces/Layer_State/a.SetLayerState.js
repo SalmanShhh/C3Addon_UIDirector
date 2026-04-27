@@ -32,5 +32,6 @@ export const config = {
 export const expose = true;
 
 export default function (layerName, state) {
-  this._actSetLayerState(layerName, state);
+  const stateKeys = ["visible", "hidden", "disabled"];
+  this._actSetLayerState(layerName, this._combo(state, stateKeys));
 }
