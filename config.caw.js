@@ -109,6 +109,8 @@ export const properties = [
     type: PROPERTY_TYPE.GROUP,
     id: "groupTransitions",
     name: "Transitions",
+    desc: "Transition-related defaults.",
+    options: {},
   },
   {
     type: PROPERTY_TYPE.COMBO,
@@ -153,6 +155,8 @@ export const properties = [
     type: PROPERTY_TYPE.GROUP,
     id: "groupBehavior",
     name: "Behavior",
+    desc: "Global behavior settings.",
+    options: {},
   },
   {
     type: PROPERTY_TYPE.CHECK,
@@ -172,6 +176,8 @@ export const properties = [
     type: PROPERTY_TYPE.GROUP,
     id: "groupModalDim",
     name: "Modal / Dim",
+    desc: "Modal dim layer settings.",
+    options: {},
   },
   {
     type: PROPERTY_TYPE.TEXT,

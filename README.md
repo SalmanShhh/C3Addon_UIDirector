@@ -1,27 +1,11 @@
 <img src="./src/icon.svg" width="100" /><br>
 # UIDirector
 <i>Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip - then open, close, and navigate between them with simple actions.</i> <br>
-### Version 0.0.3.0
+### Version 0.0.4.1
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.3.0.c3addon/salmanshh_uidirector-0.0.3.0.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.4.1.c3addon/salmanshh_uidirector-0.0.4.1.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_UIDirector/releases) </sub> <br>
-
-#### What's New in 0.0.3.0
-**Added:**
-- (CountTrackedLayers GetTrackedLayerByIndex) expressions for iterating tracked layers in a Repeat loop
-- "_combo(value, keys)" helper on the instance for safe index-to-string mapping of combo params
-- Debug mode can be toggled.
-
-**Changed:**
-- Fix Layer visibility checks.
-- fix Parent layering reliability.
-- reduce per-frame overhead when no animations are running (stop ticking)
-
-**Fixed:**
-- Fix ACEs that were silently failing.
-
-<sub>[View full changelog](#changelog)</sub>
 
 ---
 <b><u>Author:</u></b> SalmanShh <br>
@@ -57,11 +41,14 @@ npm run dev
 | Property Name | Description | Type |
 | --- | --- | --- |
 | UI Container Layer | Name of the group layer in your layout that contains all managed UI sublayers. Example: if your group layer is called "UI", enter "UI" here. | text |
+| Transitions | Transition-related defaults. | group |
 | Default Animation | The default transition animation played when showing or hiding a layer. Can be overridden per-layer with Set Layer Animation. | combo |
 | Default Anim Duration (ms) | How long the default transition animation takes, in milliseconds. Example: 200 = a quick 0.2 second fade. | integer |
 | Default Easing | The easing curve applied to the default animation. EaseOut feels snappy and responsive; EaseInOut feels smooth. | combo |
+| Behavior | Global behavior settings. | group |
 | Persist Across Layouts | If enabled, UIDirector remembers tracked layers and their states when the layout changes. Layer references are re-resolved on the new layout. | check |
 | Debug Mode | If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release. | check |
+| Modal / Dim | Modal dim layer settings. | group |
 | Dim Layer | Optional. The name of a layer inside your UI container to use as a dim/scrim overlay. UIDirector will show this layer at the set opacity whenever a modal screen or popup is active, and hide it when none are. Leave blank to disable. | text |
 | Dim Opacity | The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent). | percent |
 
@@ -163,6 +150,14 @@ npm run dev
 
 ---
 ## Changelog
+
+### Version 0.0.4.1
+
+---
+
+### Version 0.0.4.0
+
+---
 
 ### Version 0.0.3.0
 

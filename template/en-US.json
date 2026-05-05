@@ -21,6 +21,10 @@
             "name": "UI Container Layer",
             "desc": "Name of the group layer in your layout that contains all managed UI sublayers. Example: if your group layer is called \"UI\", enter \"UI\" here."
           },
+          "groupTransitions": {
+            "name": "Transitions",
+            "desc": "Transition-related defaults."
+          },
           "defaultAnimType": {
             "name": "Default Animation",
             "desc": "The default transition animation played when showing or hiding a layer. Can be overridden per-layer with Set Layer Animation.",
@@ -47,6 +51,10 @@
               "easeInOut": "Ease In Out"
             }
           },
+          "groupBehavior": {
+            "name": "Behavior",
+            "desc": "Global behavior settings."
+          },
           "persistAcrossLayouts": {
             "name": "Persist Across Layouts",
             "desc": "If enabled, UIDirector remembers tracked layers and their states when the layout changes. Layer references are re-resolved on the new layout."
@@ -54,6 +62,10 @@
           "debugMode": {
             "name": "Debug Mode",
             "desc": "If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release."
+          },
+          "groupModalDim": {
+            "name": "Modal / Dim",
+            "desc": "Modal dim layer settings."
           },
           "dimLayer": {
             "name": "Dim Layer",
