@@ -13,10 +13,12 @@ export default function (parentClass) {
       this._setTicking(true);
 
       // Cache properties by name for easy access.
-      // Index order MUST match the declaration order in config.caw.js:
-      // 0:uiContainerLayer 1:defaultAnimType 2:defaultAnimDuration
-      // 3:defaultAnimEasing 4:persistAcrossLayouts 5:debugMode
-      // 6:dimLayer 7:dimOpacity
+      // Index order MUST match the declaration order in config.caw.js.
+      // GROUP properties occupy index slots (no value).
+      // 0:uiContainerLayer
+      // 1:GROUP(Transitions) 2:defaultAnimType 3:defaultAnimDuration 4:defaultAnimEasing
+      // 5:GROUP(Behavior) 6:persistAcrossLayouts 7:debugMode
+      // 8:GROUP(Modal/Dim) 9:dimLayer 10:dimOpacity
       const props = this._getInitProperties();
       if (props) {
         // COMBO properties arrive as 0-based numeric indices — map to strings.
@@ -24,13 +26,13 @@ export default function (parentClass) {
         const easingKeys   = ["linear", "easeIn", "easeOut", "easeInOut"];
         this._props = {
           uiContainerLayer:    props[0],
-          defaultAnimType:     animTypeKeys[props[1]] ?? "fade",
-          defaultAnimDuration: props[2],
-          defaultAnimEasing:   easingKeys[props[3]]   ?? "easeOut",
-          persistAcrossLayouts: props[4],
-          debugMode:           props[5],
-          dimLayer:            props[6],
-          dimOpacity:          props[7],
+          defaultAnimType:     animTypeKeys[props[2]] ?? "fade",
+          defaultAnimDuration: props[3],
+          defaultAnimEasing:   easingKeys[props[4]]   ?? "easeOut",
+          persistAcrossLayouts: props[6],
+          debugMode:           props[7],
+          dimLayer:            props[9],
+          dimOpacity:          props[10],
         };
       } else {
         this._props = {};

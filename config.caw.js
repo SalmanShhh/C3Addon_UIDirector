@@ -88,10 +88,15 @@ export const info = {
 };
 
 // Properties - declaration order is critical!
+// GROUP properties occupy index slots but have no value.
 // _getInitProperties() returns them as an array by index:
-// 0: uiContainerLayer  1: defaultAnimType  2: defaultAnimDuration
-// 3: defaultAnimEasing  4: persistAcrossLayouts  5: debugMode
-// 6: dimLayer  7: dimOpacity
+// 0: uiContainerLayer
+// 1: GROUP "Transitions" (no value)
+// 2: defaultAnimType  3: defaultAnimDuration  4: defaultAnimEasing
+// 5: GROUP "Behavior" (no value)
+// 6: persistAcrossLayouts  7: debugMode
+// 8: GROUP "Modal / Dim" (no value)
+// 9: dimLayer  10: dimOpacity
 export const properties = [
   {
     type: PROPERTY_TYPE.TEXT,
@@ -99,6 +104,11 @@ export const properties = [
     name: "UI Container Layer",
     desc: 'Name of the group layer in your layout that contains all managed UI sublayers. Example: if your group layer is called "UI", enter "UI" here.',
     options: { initialValue: "UI" },
+  },
+  {
+    type: PROPERTY_TYPE.GROUP,
+    id: "groupTransitions",
+    name: "Transitions",
   },
   {
     type: PROPERTY_TYPE.COMBO,
@@ -140,6 +150,11 @@ export const properties = [
     },
   },
   {
+    type: PROPERTY_TYPE.GROUP,
+    id: "groupBehavior",
+    name: "Behavior",
+  },
+  {
     type: PROPERTY_TYPE.CHECK,
     id: "persistAcrossLayouts",
     name: "Persist Across Layouts",
@@ -152,6 +167,11 @@ export const properties = [
     name: "Debug Mode",
     desc: "If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release.",
     options: { initialValue: false },
+  },
+  {
+    type: PROPERTY_TYPE.GROUP,
+    id: "groupModalDim",
+    name: "Modal / Dim",
   },
   {
     type: PROPERTY_TYPE.TEXT,

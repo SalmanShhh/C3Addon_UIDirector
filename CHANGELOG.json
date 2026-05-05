@@ -33,5 +33,10 @@
     "added": "- (CountTrackedLayers GetTrackedLayerByIndex) expressions for iterating tracked layers in a Repeat loop\n- \"_combo(value, keys)\" helper on the instance for safe index-to-string mapping of combo params\n- Debug mode can be toggled.",
     "changed": "- Fix Layer visibility checks.\n- fix Parent layering reliability.\n- reduce per-frame overhead when no animations are running (stop ticking)",
     "fixed": "- Fix ACEs that were silently failing."
+  },
+  "0.0.4.0": {
+    "added": "",
+    "changed": "",
+    "fixed": ""
   }
 }

@@ -6,10 +6,18 @@ export default function (instanceClass) {
 
     Release() {}
 
-    OnCreate() {}
+    OnCreate() {
+      // Set initial enabled state for Dim Opacity based on current Dim Layer value.
+      const dimLayer = this.GetPropertyValue("dimLayer");
+      this.SetPropertyEnabled("dimOpacity", typeof dimLayer === "string" && dimLayer.trim().length > 0);
+    }
 
     OnPlacedInLayout() {}
 
-    OnPropertyChanged(id, value) {}
+    OnPropertyChanged(id, value) {
+      if (id === "dimLayer") {
+        this.SetPropertyEnabled("dimOpacity", typeof value === "string" && value.trim().length > 0);
+      }
+    }
   };
 }
