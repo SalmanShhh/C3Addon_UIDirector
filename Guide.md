@@ -6,25 +6,44 @@
 
 ## Table of Contents
 
-1. [Core Concepts](#1-core-concepts)
-2. [Project Setup](#2-project-setup)
-3. [Plugin Properties](#3-plugin-properties)
-4. [Layer Roles](#4-layer-roles)
-5. [Layer States](#5-layer-states)
-6. [The Focus Stack](#6-the-focus-stack)
-7. [Group Layers & Nested Screens](#7-group-layers--nested-screens)
-8. [Animations](#8-animations)
-9. [Actions Reference](#9-actions-reference)
-10. [Conditions Reference](#10-conditions-reference)
-11. [Expressions Reference](#11-expressions-reference)
-12. [Triggers Reference](#12-triggers-reference)
-13. [Game Use Cases](#13-game-use-cases)
-14. [C3 Debugger](#14-c3-debugger)
-15. [Timescale Control](#15-timescale-control)
+1. [Scenarios Where This Addon Excels](#1-scenarios-where-this-addon-excels)
+2. [Core Concepts](#2-core-concepts)
+3. [Project Setup](#3-project-setup)
+4. [Plugin Properties](#4-plugin-properties)
+5. [Layer Roles](#5-layer-roles)
+6. [Layer States](#6-layer-states)
+7. [The Focus Stack](#7-the-focus-stack)
+8. [Group Layers & Nested Screens](#8-group-layers--nested-screens)
+9. [Animations](#9-animations)
+10. [Actions Reference](#10-actions-reference)
+11. [Conditions Reference](#11-conditions-reference)
+12. [Expressions Reference](#12-expressions-reference)
+13. [Triggers Reference](#13-triggers-reference)
+14. [Game Use Cases](#14-game-use-cases)
+15. [C3 Debugger](#15-c3-debugger)
+16. [Timescale Control](#16-timescale-control)
 
 ---
 
-## 1. Core Concepts
+## 1. Scenarios Where This Addon Excels
+
+**Linear menu navigation** - Main Menu -> Settings -> Audio. Each `Go back` returns one level and restores the previous screen exactly. No manual tracking needed.
+
+**Persistent HUD alongside changing screens** - A HUD that stays visible regardless of what screen is open. Register it with `Blocks others: false` and set it to `visible` directly, bypassing the navigation history. It sits alongside screens without interfering with back-navigation.
+
+**Phase-based in-game UI** - Separate Start, Playing, and Results screens. `Navigate to screen` manages Z-order, animations, and state transitions automatically regardless of which phase transitions to which.
+
+**Modal confirmation dialogs** - A popup appears above the current screen and blocks all background input. When the player responds and the popup closes, background interactivity is automatically restored. No manual `Set layer interactive` events required.
+
+**Deep sub-navigation with a Skip Back** - Settings -> Audio -> Advanced Audio. A single `Return to screen "Settings"` instantly collapses the entire stack back to that point, regardless of how many intermediate screens exist.
+
+**Animation-safe logic** - Layers are never interactive while animating. The `On layer fully opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
+
+**Pause menus that auto-freeze and restore the game** - `Set layer timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §16.
+
+---
+
+## 2. Core Concepts
 
 ### The problem UIDirector solves
 
@@ -88,32 +107,14 @@ With this setup, layout changes become transparent to the player. The game world
 
 | Concept | What it means |
 |---|---|
-| **Tracking** | Call `Setup screen layer` (or `Track layer`) once per layer at layout start. UIDirector then owns that layer. |
-| **Role** | Every tracked layer is `normal` (navigable screen), `popup` (overlay above screens), or `tooltip` (display-only, always on top). See §4. |
-| **State** | Every tracked layer is always in one of four states: `hidden`, `visible`, `disabled`, or `focused`. See §5. |
-| **Focus stack** | A navigation history. Navigating to a screen pushes a frame; going back pops it and restores the previous state exactly. See §6. |
+| **Tracking** | Call `Setup: Screen Layer` (or `Track layer`) once per layer at layout start. UIDirector then owns that layer. |
+| **Role** | Every tracked layer is `normal` (navigable screen), `popup` (overlay above screens), or `tooltip` (display-only, always on top). See §5. |
+| **State** | Every tracked layer is always in one of four states: `hidden`, `visible`, `disabled`, or `focused`. See §6. |
+| **Focus stack** | A navigation history. Navigating to a screen pushes a frame; going back pops it and restores the previous state exactly. See §7. |
 
 ---
 
-### Scenarios where UIDirector excels
-
-**Linear menu navigation** - Main Menu -> Settings -> Audio. Each `Go back` returns one level and restores the previous screen exactly. No manual tracking needed.
-
-**Persistent HUD alongside changing screens** - A HUD that stays visible regardless of what screen is open. Register it with `Blocks others: false` and set it to `visible` directly, bypassing the navigation history. It sits alongside screens without interfering with back-navigation.
-
-**Phase-based in-game UI** - Separate Start, Playing, and Results screens. `Navigate to screen` manages Z-order, animations, and state transitions automatically regardless of which phase transitions to which.
-
-**Modal confirmation dialogs** - A popup appears above the current screen and blocks all background input. When the player responds and the popup closes, background interactivity is automatically restored. No manual `Set layer interactive` events required.
-
-**Deep sub-navigation with a Skip Back** - Settings -> Audio -> Advanced Audio. A single `Return to screen "Settings"` instantly collapses the entire stack back to that point, regardless of how many intermediate screens exist.
-
-**Animation-safe logic** - Layers are never interactive while animating. The `On layer fully opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
-
-**Pause menus that auto-freeze and restore the game** - `Set layer timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §15.
-
----
-
-## 2. Project Setup
+## 3. Project Setup
 
 ### Step 1 - Install the addon
 
@@ -137,11 +138,11 @@ In the C3 layer editor, create a **group layer** and put all your UI sublayers i
 
 The order of sublayers inside the container does not matter - UIDirector reorders them automatically at runtime.
 
-> **Recommended:** In C3's layer panel, open `!UI`'s layer properties and enable **Global**. This makes the container and all its sublayers persist across layout changes. Paired with UIDirector's **Persist Across Layouts** property, your entire UI state - screens, navigation history, popups - carries over seamlessly when the game moves to a new layout. See §1 for a full explanation of how this works.
+> **Recommended:** In C3's layer panel, open `!UI`'s layer properties and enable **Global**. This makes the container and all its sublayers persist across layout changes. Paired with UIDirector's **Persist Across Layouts** property, your entire UI state - screens, navigation history, popups - carries over seamlessly when the game moves to a new layout. See §2 for a full explanation of how this works.
 
 ### Step 3 - Add the UIDirector object
 
-Add a **UIDirector** object to your layout (like a global plugin, it is single-instance). Configure its properties (see §3).
+Add a **UIDirector** object to your layout (like a global plugin, it is single-instance). Configure its properties (see §4).
 
 ### Step 4 - Register layers at layout start
 
@@ -149,12 +150,12 @@ Use the **Common** category actions for the simplest setup:
 
 ```
 Event: On start of layout
-  Action: Setup screen layer   -> "Main Menu"
-  Action: Setup screen layer   -> "HUD"
-  Action: Setup screen layer   -> "Pause Menu"
-  Action: Setup screen layer   -> "Inventory"
-  Action: Setup popup layer    -> "Confirm Dialog"
-  Action: Setup tooltip layer  -> "Tooltip"
+  Action: Setup: Screen Layer   -> "Main Menu"
+  Action: Setup: Screen Layer   -> "HUD"
+  Action: Setup: Screen Layer   -> "Pause Menu"
+  Action: Setup: Screen Layer   -> "Inventory"
+  Action: Setup: Popup Layer    -> "Confirm Dialog"
+  Action: Setup: Tooltip Layer  -> "Tooltip"
   Action: Show screen          -> "Main Menu"
 ```
 
@@ -162,7 +163,7 @@ That's it. UIDirector will hide all other layers and show `Main Menu`.
 
 ---
 
-## 3. Plugin Properties
+## 4. Plugin Properties
 
 Configure these in the Properties Bar when the UIDirector object is selected.
 
@@ -174,12 +175,12 @@ Configure these in the Properties Bar when the UIDirector object is selected.
 | **Default Anim Easing** | Combo | `easeOut` | Easing curve. Options: `linear`, `easeIn`, `easeOut`, `easeInOut`. |
 | **Persist Across Layouts** | Checkbox | Off | When enabled, the focus stack, registered layers, and all layer states survive a C3 layout change. Works best when the container layer is also marked **Global** in C3's layer properties - without that, the layer objects are recreated on the new layout and UIDirector must re-resolve them. |
 | **Debug Mode** | Checkbox | Off | Logs all state changes and animations to the browser console. Useful during development. |
-| **Dim Layer** | Text | `""` | Optional. The name of a layer inside the container to use as a dim/scrim overlay. UIDirector automatically shows this layer whenever a modal screen or popup is active, and hides it otherwise. Leave blank to disable. See §8 for setup tips. |
+| **Dim Layer** | Text | `""` | Optional. The name of a layer inside the container to use as a dim/scrim overlay. UIDirector automatically shows this layer whenever a modal screen or popup is active, and hides it otherwise. Leave blank to disable. See §9 for setup tips. |
 | **Dim Opacity** | Percent | `0.5` | The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). The dim layer is always invisible when not needed regardless of this setting. |
 
 ---
 
-## 4. Layer Roles
+## 5. Layer Roles
 
 Every tracked layer has exactly one role, set at registration and never changed.
 
@@ -215,7 +216,7 @@ There is no separate role for HUDs, drawers, loading screens, or overlays. They 
 
 ---
 
-## 5. Layer States
+## 6. Layer States
 
 Every tracked layer is always in one of these states:
 
@@ -230,7 +231,7 @@ Check the state of any layer at any time with `LayerState("layerName")`.
 
 ---
 
-## 6. The Focus Stack
+## 7. The Focus Stack
 
 The focus stack is UIDirector's navigation history. It works like a browser's Back button.
 
@@ -264,7 +265,7 @@ Each `Go back` pops one level: Controls -> Settings -> Main Menu.
 
 ---
 
-## 7. Group Layers & Nested Screens
+## 8. Group Layers & Nested Screens
 
 UIDirector supports three layer configurations for organising your UI. Understanding each one - and when to choose it - prevents layout design mistakes that are difficult to fix later.
 
@@ -307,8 +308,8 @@ Register the group layer only - the sublayers are never tracked individually:
 
 ```
 Event: On start of layout
-  Action: Setup screen layer -> "Options"
-  Action: Setup screen layer -> "Main Menu"
+  Action: Setup: Screen Layer -> "Options"
+  Action: Setup: Screen Layer -> "Main Menu"
   Action: Show screen -> "Main Menu"
 ```
 
@@ -359,11 +360,11 @@ Register the individual layers - UIDirector finds them by searching recursively 
 
 ```
 Event: On start of layout
-  Action: Setup screen layer -> "Start Screen"
-  Action: Setup screen layer -> "Playing HUD"
-  Action: Setup screen layer -> "Finish Screen"
-  Action: Setup screen layer -> "Debug"
-  Action: Setup screen layer -> "Touch Controls"
+  Action: Setup: Screen Layer -> "Start Screen"
+  Action: Setup: Screen Layer -> "Playing HUD"
+  Action: Setup: Screen Layer -> "Finish Screen"
+  Action: Setup: Screen Layer -> "Debug"
+  Action: Setup: Screen Layer -> "Touch Controls"
   Action: Show screen -> "Start Screen"
 ```
 
@@ -441,7 +442,7 @@ UIDirector handles this correctly. When `Options` needs to come to the front, th
 
 ---
 
-## 8. Animations
+## 9. Animations
 
 ### Default animations
 
@@ -517,15 +518,15 @@ Action: Skip all animations                       // snap ALL animating layers i
 
 ---
 
-## 9. Actions Reference
+## 10. Actions Reference
 
 ### Common (beginner-friendly)
 
 | Action | Description |
 |---|---|
-| **Setup screen layer** `name` | Register a layer as a normal navigable screen. Call once at layout start. |
-| **Setup popup layer** `name` | Register a layer as a popup overlay. |
-| **Setup tooltip layer** `name` | Register a layer as a tooltip (display-only, always on top). |
+| **Setup: Screen Layer** `name` | Register a layer as a normal navigable screen. Call once at layout start. |
+| **Setup: Popup Layer** `name` | Register a layer as a popup overlay. |
+| **Setup: Tooltip Layer** `name` | Register a layer as a tooltip (display-only, always on top). |
 | **Show screen** `name` | Navigate to a screen, pushing it on the focus stack. |
 | **Go back** | Close the current screen and return to the previous one (like a Back button). |
 | **Open popup** `name` | Show a popup overlay above the current screen. |
@@ -591,7 +592,7 @@ Action: Skip all animations                       // snap ALL animating layers i
 
 ---
 
-## 10. Conditions Reference
+## 11. Conditions Reference
 
 | Condition | Description |
 |---|---|
@@ -612,7 +613,7 @@ Action: Skip all animations                       // snap ALL animating layers i
 
 ---
 
-## 11. Expressions Reference
+## 12. Expressions Reference
 
 | Expression | Returns | Description |
 |---|---|---|
@@ -636,7 +637,7 @@ Action: Skip all animations                       // snap ALL animating layers i
 
 ---
 
-## 12. Triggers Reference
+## 13. Triggers Reference
 
 Triggers fire in response to state changes. They do not filter by layer unless you add a parameter.
 
@@ -656,7 +657,7 @@ Triggers fire in response to state changes. They do not filter by layer unless y
 
 ---
 
-## 13. Game Use Cases
+## 14. Game Use Cases
 
 ---
 
@@ -676,9 +677,9 @@ Triggers fire in response to state changes. They do not filter by layer unless y
 ```
 // ── Layout Start ──────────────────────────────────────────
 Event: On start of layout
-  Action: Setup screen layer -> "Main Menu"
-  Action: Setup screen layer -> "Settings"
-  Action: Setup screen layer -> "Credits"
+  Action: Setup: Screen Layer -> "Main Menu"
+  Action: Setup: Screen Layer -> "Settings"
+  Action: Setup: Screen Layer -> "Credits"
   Action: Show screen        -> "Main Menu"
 
 // ── Navigation ────────────────────────────────────────────
@@ -740,7 +741,7 @@ Event: Button "Resume" (in Pause Menu) -> On clicked
   Action: Go back
 ```
 
-> **Timescale note:** The `Set layer timescale` call is optional. Leave it out if you do not need the game to freeze on pause. If you do use it, no manual `Set time scale` events are needed — UIDirector applies and restores the value automatically on open/close. See §15 for full details.
+> **Timescale note:** The `Set layer timescale` call is optional. Leave it out if you do not need the game to freeze on pause. If you do use it, no manual `Set time scale` events are needed — UIDirector applies and restores the value automatically on open/close. See §16 for full details.
 
 ---
 
@@ -958,8 +959,8 @@ Enable **Persist Across Layouts** in the UIDirector properties.
 ```
 // ── In the overworld layout ───────────────────────────────
 Event: On start of layout
-  Action: Setup screen layer -> "HUD"
-  Action: Setup screen layer -> "Inventory"
+  Action: Setup: Screen Layer -> "HUD"
+  Action: Setup: Screen Layer -> "Inventory"
   // UIDirector automatically restores the saved state from the previous layout.
   // If Inventory was focused before the transition, it will be focused again.
 
@@ -1002,8 +1003,8 @@ Event: Every tick
 ```
 // ── Show loading screen first (no history) ────────────────
 Event: On start of layout
-  Action: Setup screen layer -> "Loading"
-  Action: Setup screen layer -> "Main Menu"
+  Action: Setup: Screen Layer -> "Loading"
+  Action: Setup: Screen Layer -> "Main Menu"
   Action: Show screen -> "Loading"
 
 // ── Loading finishes - replace so Back cannot go back ─────
@@ -1039,9 +1040,9 @@ The popup plays its normal opening and closing animations automatically. Calling
 
 ```
 Event: On start of layout
-  Action: Setup screen layer -> "Audio"
-  Action: Setup screen layer -> "Video"
-  Action: Setup screen layer -> "Controls"
+  Action: Setup: Screen Layer -> "Audio"
+  Action: Setup: Screen Layer -> "Video"
+  Action: Setup: Screen Layer -> "Controls"
 
   // Set animation + mirror close in one action per tab
   Action: Set layer animation -> "Audio",    slideLeft, 300, easeOut, mirror close: true
@@ -1159,7 +1160,7 @@ Event: On "Return to Menu" button clicked
 
 ---
 
-## 14. C3 Debugger
+## 15. C3 Debugger
 
 UIDirector exposes a live panel in the **C3 Debugger** (the built-in debugger you open with F12 while previewing). No setup is needed — open the debugger, expand the UIDirector instance, and you see the full runtime state.
 
@@ -1216,7 +1217,7 @@ The debugger panel replaces the need for debug Text objects that manually read e
 
 ---
 
-## 15. Timescale Control
+## 16. Timescale Control
 
 UIDirector provides two ways to control timescale for UI layers:
 

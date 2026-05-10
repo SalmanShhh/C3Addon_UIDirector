@@ -1,5 +1,5 @@
 export const config = {
-  listName: "Setup popup layer",
+  listName: "Setup: Popup Layer",
   displayText: "Setup popup layer {0}",
   description:
     "Registers a layer as a popup. Call once at the start for each popup layer like 'Confirm Quit' or 'Error Dialog'.",

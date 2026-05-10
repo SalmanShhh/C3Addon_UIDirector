@@ -112,7 +112,7 @@
             }
           },
           "SetupPopupLayer": {
-            "list-name": "Setup popup layer",
+            "list-name": "Setup: Popup Layer",
             "display-text": "Setup popup layer {0}",
             "description": "Registers a layer as a popup. Call once at the start for each popup layer like 'Confirm Quit' or 'Error Dialog'.",
             "params": {
@@ -123,7 +123,7 @@
             }
           },
           "SetupScreen": {
-            "list-name": "Setup screen layer",
+            "list-name": "Setup: Screen Layer",
             "display-text": "Setup screen layer {0}",
             "description": "Registers a layer as a screen. Call once at the start for each UI screen like 'Main Menu' or 'Settings'.",
             "params": {
@@ -134,7 +134,7 @@
             }
           },
           "SetupTooltipLayer": {
-            "list-name": "Setup tooltip layer",
+            "list-name": "Setup: Tooltip Layer",
             "display-text": "Setup tooltip layer {0}",
             "description": "Registers a layer as a tooltip. Call once at the start for each tooltip layer like 'Item Hint' or 'Button Description'.",
             "params": {

@@ -1,5 +1,5 @@
 export const config = {
-  listName: "Setup screen layer",
+  listName: "Setup: Screen Layer",
   displayText: "Setup screen layer {0}",
   description:
     "Registers a layer as a screen. Call once at the start for each UI screen like 'Main Menu' or 'Settings'.",

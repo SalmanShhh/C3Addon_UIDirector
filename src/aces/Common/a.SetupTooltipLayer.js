@@ -1,5 +1,5 @@
 export const config = {
-  listName: "Setup tooltip layer",
+  listName: "Setup: Tooltip Layer",
   displayText: "Setup tooltip layer {0}",
   description:
     "Registers a layer as a tooltip. Call once at the start for each tooltip layer like 'Item Hint' or 'Button Description'.",

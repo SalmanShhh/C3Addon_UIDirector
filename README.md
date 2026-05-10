@@ -1,9 +1,9 @@
 <img src="./src/icon.svg" width="100" /><br>
 # UIDirector
 <i>Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip - then open, close, and navigate between them with simple actions.</i> <br>
-### Version 0.0.4.1
+### Version 1.0.0.0
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-0.0.4.1.c3addon/salmanshh_uidirector-0.0.4.1.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-1.0.0.0.c3addon/salmanshh_uidirector-1.0.0.0.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_UIDirector/releases) </sub> <br>
 
@@ -61,9 +61,9 @@ npm run dev
 | Go back | Returns to the previous screen, like a Back button. Use for Escape key or back arrows. |  |
 | Hide tooltip | Hides the current tooltip. Use when the mouse leaves a button or item. |  |
 | Open popup | Opens a popup above the current screen. Use for confirmation dialogs, rewards, or alerts. | Layer name             *(string)* <br> |
-| Setup popup layer | Registers a layer as a popup. Call once at the start for each popup layer like 'Confirm Quit' or 'Error Dialog'. | Layer name             *(string)* <br> |
-| Setup screen layer | Registers a layer as a screen. Call once at the start for each UI screen like 'Main Menu' or 'Settings'. | Layer name             *(string)* <br> |
-| Setup tooltip layer | Registers a layer as a tooltip. Call once at the start for each tooltip layer like 'Item Hint' or 'Button Description'. | Layer name             *(string)* <br> |
+| Setup: Popup Layer | Registers a layer as a popup. Call once at the start for each popup layer like 'Confirm Quit' or 'Error Dialog'. | Layer name             *(string)* <br> |
+| Setup: Screen Layer | Registers a layer as a screen. Call once at the start for each UI screen like 'Main Menu' or 'Settings'. | Layer name             *(string)* <br> |
+| Setup: Tooltip Layer | Registers a layer as a tooltip. Call once at the start for each tooltip layer like 'Item Hint' or 'Button Description'. | Layer name             *(string)* <br> |
 | Show screen | Navigates to a screen. The player can press Back to return. Use for menu buttons like 'Settings' or 'Inventory'. | Layer name             *(string)* <br> |
 | Show tooltip | Shows a tooltip. Only one can be visible at a time. Use when the mouse hovers over a button or item. | Layer name             *(string)* <br> |
 | Go back to first screen | Closes all screens and returns to the very first one. Use for a Home button that jumps straight back to the main menu. |  |
@@ -150,6 +150,10 @@ npm run dev
 
 ---
 ## Changelog
+
+### Version 1.0.0.0
+
+---
 
 ### Version 0.0.4.1
 
