@@ -34,7 +34,9 @@
               "slideRight": "Slide Right",
               "slideUp": "Slide Up",
               "slideDown": "Slide Down",
-              "none": "None (instant)"
+              "none": "None (instant)",
+              "scaleDown": "Scale Down",
+              "scaleUp": "Scale Up"
             }
           },
           "defaultAnimDuration": {
@@ -48,7 +50,14 @@
               "linear": "Linear",
               "easeIn": "Ease In",
               "easeOut": "Ease Out",
-              "easeInOut": "Ease In Out"
+              "easeInOut": "Ease In Out",
+              "quadraticOut": "Quadratic Out",
+              "quarticOut": "Quartic Out",
+              "exponentialOut": "Exponential Out",
+              "circularOut": "Circular Out",
+              "backOut": "Back Out",
+              "elasticOut": "Elastic Out",
+              "bounceOut": "Bounce Out"
             }
           },
           "groupBehavior": {
@@ -259,7 +268,9 @@
                   "slideRight": "Slide Right",
                   "slideUp": "Slide Up",
                   "slideDown": "Slide Down",
-                  "none": "None (instant)"
+                  "none": "None (instant)",
+                  "scaleDown": "Scale Down",
+                  "scaleUp": "Scale Up"
                 }
               },
               "duration": {
@@ -273,12 +284,19 @@
                   "linear": "Linear",
                   "easeIn": "Ease In",
                   "easeOut": "Ease Out",
-                  "easeInOut": "Ease In Out"
+                  "easeInOut": "Ease In Out",
+                  "quadraticOut": "Quadratic Out",
+                  "quarticOut": "Quartic Out",
+                  "exponentialOut": "Exponential Out",
+                  "circularOut": "Circular Out",
+                  "backOut": "Back Out",
+                  "elasticOut": "Elastic Out",
+                  "bounceOut": "Bounce Out"
                 }
               },
               "mirrorOnBack": {
                 "name": "Mirror close direction",
-                "desc": "When true, the closing animation plays in the opposite direction to the opening animation. Only affects slide animations. Ignored for fade and none."
+                "desc": "When true, the closing animation plays in the opposite direction to the opening animation. Affects slide and scale animations. Ignored for fade and none."
               }
             }
           },

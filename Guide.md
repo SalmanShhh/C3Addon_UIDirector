@@ -19,9 +19,13 @@
 11. [Conditions Reference](#11-conditions-reference)
 12. [Expressions Reference](#12-expressions-reference)
 13. [Triggers Reference](#13-triggers-reference)
-14. [Game Use Cases](#14-game-use-cases)
-15. [C3 Debugger](#15-c3-debugger)
-16. [Timescale Control](#16-timescale-control)
+14. [System Use Cases](#14-system-use-cases)
+15. [Game Use Cases](#15-game-use-cases)
+16. [C3 Debugger](#16-c3-debugger)
+17. [Timescale Control](#17-timescale-control)
+18. [Scripting (C3 Script / JavaScript)](#18-scripting-c3-script--javascript)
+19. [UI Suite Integration](#19-ui-suite-integration)
+20. [Tips and Common Mistakes](#20-tips-and-common-mistakes)
 
 ---
 
@@ -39,7 +43,7 @@
 
 **Animation-safe logic** - Layers are never interactive while animating. The `On layer fully opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
 
-**Pause menus that auto-freeze and restore the game** - `Set layer timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §16.
+**Pause menus that auto-freeze and restore the game** - `Set layer timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §17.
 
 ---
 
@@ -170,9 +174,9 @@ Configure these in the Properties Bar when the UIDirector object is selected.
 | Property | Type | Default | Description |
 |---|---|---|---|
 | **UI Container Layer** | Text | `"UI"` | The name of the group layer that holds all your UI sublayers. Must match exactly (case-sensitive). |
-| **Default Anim Type** | Combo | `fade` | Animation used when no per-layer override is set. Options: `fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `none`. |
+| **Default Anim Type** | Combo | `fade` | Animation used when no per-layer override is set. Options: `fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `none`, `scaleDown`, `scaleUp`. |
 | **Default Anim Duration** | Integer | `200` | How long transitions take in milliseconds. |
-| **Default Anim Easing** | Combo | `easeOut` | Easing curve. Options: `linear`, `easeIn`, `easeOut`, `easeInOut`. |
+| **Default Anim Easing** | Combo | `easeOut` | Easing curve. Options: `linear`, `easeIn`, `easeOut`, `easeInOut`, `quadraticOut`, `quarticOut`, `exponentialOut`, `circularOut`, `backOut`, `elasticOut`, `bounceOut`. |
 | **Persist Across Layouts** | Checkbox | Off | When enabled, the focus stack, registered layers, and all layer states survive a C3 layout change. Works best when the container layer is also marked **Global** in C3's layer properties - without that, the layer objects are recreated on the new layout and UIDirector must re-resolve them. |
 | **Debug Mode** | Checkbox | Off | Logs all state changes and animations to the browser console. Useful during development. |
 | **Dim Layer** | Text | `""` | Optional. The name of a layer inside the container to use as a dim/scrim overlay. UIDirector automatically shows this layer whenever a modal screen or popup is active, and hides it otherwise. Leave blank to disable. See §9 for setup tips. |
@@ -468,7 +472,22 @@ This overrides the plugin defaults only for the `Settings` layer.
 | `slideRight` | Slides in from the right | Slides out to the right |
 | `slideUp` | Slides up into view | Slides up and out |
 | `slideDown` | Slides down into view | Slides down and out |
+| `scaleDown` | Starts large and scales to 1 | Scales down toward 0.2 |
+| `scaleUp` | Starts small and scales to 1 | Scales up toward 2 |
 | `none` | Instant | Instant |
+
+Slide animations use an off-screen buffer so layers begin and end fully outside view, including on wide layouts.
+
+For scale animations, opacity is animated separately with a fixed short curve for readability:
+- Opacity duration: `300ms`
+- Opacity easing: `quarticOut`
+- Scale easing and duration still follow your chosen animation easing and duration
+
+### Easing options
+
+You can use these easing curves in plugin defaults and per-layer overrides:
+
+`linear`, `easeIn`, `easeOut`, `easeInOut`, `quadraticOut`, `quarticOut`, `exponentialOut`, `circularOut`, `backOut`, `elasticOut`, `bounceOut`.
 
 ### Driving custom effects with animation progress
 
@@ -494,6 +513,10 @@ Event: On start of layout (after tracking)
 ```
 
 Mirror only applies when **Return to previous screen** is used (i.e., the player goes Back). Navigating forward always uses the standard opening animation. Fade and none animations are unaffected.
+
+Mirror also works with scale animations:
+- `scaleDown` mirrored on back becomes `scaleUp`
+- `scaleUp` mirrored on back becomes `scaleDown`
 
 ### Dim layer (scrim overlay)
 
@@ -548,11 +571,11 @@ Action: Skip all animations                       // snap ALL animating layers i
 |---|---|
 | **Set layer state** `name, state` | Directly set a layer's state: `visible`, `hidden`, `disabled`. |
 | **Set layer blocks other screens** `name, enabled` | Change whether a screen blocks all other screens when it becomes active. |
-| **Set layer animation** `name, type, duration, easing, mirror` | Override the animation for a specific layer. The optional `mirror` boolean reverses the close direction when going Back (slide animations only). |
+| **Set layer animation** `name, type, duration, easing, mirror` | Override the animation for a specific layer. The optional `mirror` boolean reverses the close direction when going Back (slide and scale animations). |
 | **Sync collisions to layer state** `name, enabled` | Toggle automatic collision syncing for a layer. When the layer is hidden or non-interactive, UIDirector disables collisions on instances that had them enabled. On restore, only those instances are re-enabled — instances that were already collisions-off are never touched. |
 | **Set layer input enabled** `name, enabled` | Manually override a layer's input on/off. UIDirector will not override this until the next state change. |
 | **Set layer data** `name, key, value` | Store an arbitrary string value on a layer, retrievable with `LayerData()`. |
-| **Set layer timescale** `name, instanceTimescale, runtimeTimescale` | Overrides `instance.timeScale` on every instance in the layer and sublayers right now (`instanceTimescale`, use -1 to skip). Optionally stores a global runtime timescale to auto-apply when the layer opens and auto-restore on close (`runtimeTimescale`, use -1 to clear). See §15. |
+| **Set layer timescale** `name, instanceTimescale, runtimeTimescale` | Overrides `instance.timeScale` on every instance in the layer and sublayers right now (`instanceTimescale`, use -1 to skip). Optionally stores a global runtime timescale to auto-apply when the layer opens and auto-restore on close (`runtimeTimescale`, use -1 to clear). See §17. |
 | **Reset layer timescale** `name` | Restores all instance timescales to follow the global timescale and clears any managed runtime timescale override. |
 
 ### Focus Stack
@@ -657,7 +680,183 @@ Triggers fire in response to state changes. They do not filter by layer unless y
 
 ---
 
-## 14. Game Use Cases
+## 14. System Use Cases
+
+This section isolates each core UIDirector system so you can learn one subsystem at a time before combining them.
+
+### Registration System
+
+Tracks layers and assigns a role plus behavior flags.
+
+#### Use Case A - One-time setup with role assignment
+
+**Scenario:** Register your full UI at layout start using beginner actions.
+
+```text
+Event: On start of layout
+  Action: Setup: Screen Layer -> "Main Menu"
+  Action: Setup: Screen Layer -> "Settings"
+  Action: Setup: Popup Layer -> "Confirm Dialog"
+  Action: Setup: Tooltip Layer -> "Tooltip"
+```
+
+#### Use Case B - Full control setup with Track layer
+
+**Scenario:** Register with explicit role, modal behavior, and collision syncing.
+
+```text
+Event: On start of layout
+  Action: Track layer -> "HUD", "normal", false, true
+  Action: Track layer -> "Pause Menu", "normal", true, false
+```
+
+Tip: Register once before any show/hide/navigation actions. Calling navigation before tracking silently does nothing.
+
+### Layer State System
+
+Controls visible/interactive state and optional collision syncing.
+
+#### Use Case A - Keep HUD visible outside stack
+
+**Scenario:** Keep a non-modal HUD visible while screen navigation still works.
+
+```text
+Event: On start of layout
+  Action: Track layer -> "HUD", "normal", false, false
+  Action: Set layer state -> "HUD", "visible"
+```
+
+#### Use Case B - Collision-safe disabling
+
+**Scenario:** Disable collision checks for only the instances UIDirector turned off.
+
+```text
+Event: On start of layout
+  Action: Track layer -> "HUD", "normal", false, true
+
+Event: Show screen -> "Pause Menu"
+  // HUD collisions disable only on instances that were enabled.
+```
+
+### Navigation System (Focus Stack)
+
+Maintains screen history and exact restoration on back navigation.
+
+#### Use Case A - Forward/back flow
+
+**Scenario:** Move from menu to settings and back.
+
+```text
+Event: Button "Settings" clicked
+  Action: Navigate to screen -> "Settings"
+
+Event: Button "Back" clicked
+  Action: Return to previous screen
+```
+
+#### Use Case B - Collapse stack to a target
+
+**Scenario:** Return from deep navigation to a known screen in one action.
+
+```text
+Event: Button "Home" clicked
+  Action: Return to screen -> "Main Menu"
+```
+
+### Popup and Tooltip System
+
+Handles temporary overlays that do not participate in focus history.
+
+#### Use Case A - Auto-dismiss popup
+
+**Scenario:** Show feedback for two seconds after save.
+
+```text
+Event: Save complete
+  Action: Show popup for duration -> "Toast", 2000
+```
+
+#### Use Case B - Single-active tooltip behavior
+
+**Scenario:** Show tooltip for hovered item and replace current tooltip automatically.
+
+```text
+Event: Mouse over Item A
+  Action: Show tooltip -> "Item Tooltip"
+
+Event: Mouse over Item B
+  Action: Show tooltip -> "Item Tooltip"
+```
+
+Tip: Tooltips are display overlays. They are shown non-interactive by design.
+
+### Transition System
+
+Applies animated open/close transitions with state-safe interaction lockout.
+
+#### Use Case A - Per-layer override
+
+**Scenario:** Give Settings a longer elastic opening than defaults.
+
+```text
+Event: On start of layout
+  Action: Set layer animation -> "Settings", "slideLeft", 450, "elasticOut", true
+```
+
+#### Use Case B - Emergency snap
+
+**Scenario:** Skip every active transition before layout change.
+
+```text
+Event: Before layout switch
+  Action: Skip all animations
+  Action: Go to layout -> "Game"
+```
+
+### Persistence and Save/Load System
+
+Persists tracked layer metadata, stack, and active overlays across layout changes.
+
+#### Use Case A - Persistent global UI
+
+**Scenario:** Keep HUD and stack state between layouts.
+
+```text
+Event: On start of layout
+  Condition: globalValue("UIInited") = 0
+    Action: Setup: Screen Layer -> "HUD"
+    Action: Setup: Screen Layer -> "Inventory"
+    Action: Set globalValue("UIInited") -> 1
+```
+
+Tip: Pair UIDirector Persist Across Layouts with C3 Global layers for seamless transitions.
+
+### Timescale System
+
+Supports both instance-level timescale changes and managed global runtime timescale.
+
+#### Use Case A - Freeze gameplay while menu animates
+
+**Scenario:** Pause menu opens, world freezes, menu still animates.
+
+```text
+Event: On start of layout
+  Action: Set layer timescale -> "Pause Menu", 1, 0
+
+Event: Button "Pause" clicked
+  Action: Navigate to screen -> "Pause Menu"
+```
+
+#### Use Case B - Restore defaults
+
+**Scenario:** Remove all timescale overrides from a screen.
+
+```text
+Event: On reset options clicked
+  Action: Reset layer timescale -> "Pause Menu"
+```
+
+## 15. Game Use Cases
 
 ---
 
@@ -741,7 +940,7 @@ Event: Button "Resume" (in Pause Menu) -> On clicked
   Action: Go back
 ```
 
-> **Timescale note:** The `Set layer timescale` call is optional. Leave it out if you do not need the game to freeze on pause. If you do use it, no manual `Set time scale` events are needed — UIDirector applies and restores the value automatically on open/close. See §16 for full details.
+> **Timescale note:** The `Set layer timescale` call is optional. Leave it out if you do not need the game to freeze on pause. If you do use it, no manual `Set time scale` events are needed — UIDirector applies and restores the value automatically on open/close. See §17 for full details.
 
 ---
 
@@ -1160,7 +1359,67 @@ Event: On "Return to Menu" button clicked
 
 ---
 
-## 15. C3 Debugger
+### Use Case 20 - Scale-Based Dialog Motion
+
+**Scenario:** Use scale animation for a dialog so it pops in and out with stronger visual feedback.
+
+```text
+Event: On start of layout
+  Action: Setup: Screen Layer -> "Shop Dialog"
+  Action: Set layer animation -> "Shop Dialog", "scaleUp", 280, "backOut", true
+
+Event: Button "Open Shop" clicked
+  Action: Navigate to screen -> "Shop Dialog"
+
+Event: Button "Close Shop" clicked
+  Action: Return to previous screen
+```
+
+Tip: Scale animations include a separate fast opacity tween, so they stay readable even with elastic/back easing.
+
+### Other game use cases
+
+**Platformer:** Use a persistent HUD layer plus modal pause and settings screens with stacked back navigation.
+
+**Metroidvania:** Keep map and inventory as independent screens while using popups for key item confirmations.
+
+**Top-down shooter:** Show temporary warning popups, auto-dismiss damage indicators, and block background input during upgrade dialogs.
+
+**Roguelike:** Drive run summary, seed info, and death recap through normal screens and use Return to screen for rapid reset flows.
+
+**JRPG:** Use deep focus stacks for party, equipment, and skill submenus with mirror-on-back transitions.
+
+**Visual novel:** Combine tooltip overlays for glossary terms with modal confirmation popups for route-affecting choices.
+
+**Puzzle game:** Use dim layer plus popup hints and close-all popups before restarting a puzzle.
+
+**Survival crafting:** Keep crafting, recipe detail, and confirmation prompts layered cleanly without manual visibility toggles.
+
+**City builder:** Use many independent utility panels as visible non-modal layers while preserving a focused settings stack.
+
+**Auto battler:** Show shop popups for limited time, then auto-dismiss while retaining the main board HUD.
+
+**Deckbuilder:** Use screen history for collection to deck edit to card detail, then pop back to exact prior context.
+
+**Tactics game:** Open ability targeting overlays as modal screens that freeze gameplay via managed runtime timescale.
+
+**Stealth game:** Show contextual tooltips and alerts while keeping gameplay layers untouched outside the UI container.
+
+**Racing game:** Use animated pause and results screens with instant transition skip during rematch flow.
+
+**Idle game:** Keep many passive panels visible, with popups for boosts and timed notifications.
+
+**Farm sim:** Navigate between map, inventory, and calendar with stable back behavior and persistent global UI.
+
+**Rhythm game:** Use minimal transitions during gameplay and richer scale transitions for song select and results.
+
+**Party game:** Handle multiple modal prompts and quickly clear all popups between rounds.
+
+**Educational game:** Use tooltip layers for definitions and guided step-by-step screen flows for lessons.
+
+**Narrative adventure:** Blend stack navigation for journal trees with popup confirmations for irreversible story choices.
+
+## 16. C3 Debugger
 
 UIDirector exposes a live panel in the **C3 Debugger** (the built-in debugger you open with F12 while previewing). No setup is needed — open the debugger, expand the UIDirector instance, and you see the full runtime state.
 
@@ -1178,11 +1437,7 @@ A quick overview of the most important state at a glance.
 | Active tooltip | Name of the visible tooltip, or `(none)` |
 | Animating layers | Number of layers currently mid-transition |
 | Total tracked | Total number of layers registered with UIDirector |
-| Debug mode | Whether debug logging is active — **click to toggle live** without restarting the preview |}
-
-**UI Director — Settings**
-
-The values of every plugin property — container layer, default animation type, duration, easing, dim layer, and so on.
+| Debug mode | Whether debug logging is active - **click to toggle live** without restarting the preview |
 
 **UI Director — Focus Stack**
 
@@ -1217,7 +1472,7 @@ The debugger panel replaces the need for debug Text objects that manually read e
 
 ---
 
-## 16. Timescale Control
+## 17. Timescale Control
 
 UIDirector provides two ways to control timescale for UI layers:
 
@@ -1294,7 +1549,192 @@ Each layer saves the runtime timescale that was active when it opened, so restor
 
 ---
 
-## Tips and Common Mistakes
+## 18. Scripting (C3 Script / JavaScript)
+
+UIDirector exposes many actions directly to script with `expose: true`, so calling these methods from script triggers the same behavior as event sheet actions.
+
+### Accessing the plugin instance
+
+In C3 Script, get the UIDirector single-global instance through your runtime object map, then call exposed methods on that instance.
+
+```js
+const uiObjType = runtime.objects.UIDirector;
+const ui = uiObjType?.getFirstInstance();
+if (!ui) return;
+
+ui.NavigateToScreen("Main Menu");
+```
+
+The object type name (`UIDirector` above) comes from your project object name.
+
+### Calling actions from script
+
+Exposed methods are PascalCase names derived from the ACE files. Parameter order is exactly the same as the ACE action order.
+
+| Method | Parameters |
+|---|---|
+| `TrackLayer` | `layerName, role, isModal, manageCollisions` |
+| `UntrackLayer` | `layerName` |
+| `UntrackAllLayers` | none |
+| `NavigateToScreen` | `layerName` |
+| `NavigateToScreenWithData` | `layerName, key, value` |
+| `ReplaceScreen` | `layerName` |
+| `ReturnToPreviousScreen` | none |
+| `ReturnToScreen` | `layerName` |
+| `NavigateBackToRoot` | none |
+| `SetLayerState` | `layerName, state` |
+| `SetLayerBlocksOthers` | `layerName, isModal` |
+| `SetLayerInputEnabled` | `layerName, enable` |
+| `SetLayerAnimation` | `layerName, type, duration, easing, mirrorOnBack` |
+| `SetLayerData` | `layerName, key, value` |
+| `SetLayerTimescale` | `layerName, instanceTimescale, runtimeTimescale` |
+| `ResetLayerTimescale` | `layerName` |
+| `SyncCollisions` | `layerName, enabled` |
+| `ShowPopup` | `layerName` |
+| `HidePopup` | `layerName` |
+| `ShowPopupFor` | `layerName, durationMs` |
+| `CloseAllPopups` | none |
+| `ShowTooltip` | `layerName` |
+| `HideTooltip` | `layerName` |
+| `HideActiveTooltip` | none |
+| `FinishAnimationInstantly` | `layerName` |
+| `SkipAllAnimations` | none |
+
+Combo parameters use 0-based numeric indices in script calls, same as ACE runtime values:
+
+```js
+// type: slideLeft, easing: backOut
+ui.SetLayerAnimation("Settings", 1, 350, 8, true);
+```
+
+### Reading state from script
+
+Expressions are not callable as methods. Use event sheet expressions for direct reads, or mirror the values to script via function calls/events when needed.
+
+For script-side loops that correspond to Count + Index expressions, use a standard loop:
+
+```js
+const count = runtime.globalVars.TrackedCount ?? 0; // example bridge from event sheet
+for (let i = 0; i < count; i++) {
+  // request name i from event-sheet function or stored array
+}
+```
+
+### Listening to events from script
+
+UIDirector triggers are event-sheet conditions, not DOM-style script listeners. The recommended pattern is:
+
+1. Catch the UIDirector trigger in event sheet.
+2. Call a C3 Script function with `LastChangedLayer()` and `LastChangedState()`.
+3. Handle your script-side logic there.
+
+```js
+export function onUiLayerChanged(layerName, state) {
+  if (state === "focused" && layerName === "Inventory") {
+    console.log("Inventory became active");
+  }
+}
+```
+
+### Complete script example
+
+```js
+export function initUi(runtime) {
+  const ui = runtime.objects.UIDirector?.getFirstInstance();
+  if (!ui) return;
+
+  ui.TrackLayer("Main Menu", 0, true, false);     // role 0 = normal
+  ui.TrackLayer("Settings", 0, true, false);
+  ui.TrackLayer("Confirm Dialog", 1, true, false); // role 1 = popup
+
+  // type 1 = slideLeft, easing 2 = easeOut
+  ui.SetLayerAnimation("Settings", 1, 300, 2, true);
+  ui.NavigateToScreen("Main Menu");
+}
+```
+
+## 19. UI Suite Integration
+
+This section explains how UIDirector fits with the UI Suite stack: UIForge, ButtonKit, ScrollCraft, SliderForge, and ToastBeam.
+
+### Integration model
+
+UIDirector should be the navigation authority. UI Suite addons read layer interactivity and focus context from that navigation state.
+
+```text
+UIDirector (navigation + layer gating)
+  -> UIForge (input routing + focus groups)
+    -> ButtonKit / ScrollCraft / SliderForge (interaction)
+      -> Your visuals
+  -> ToastBeam (independent notification channel)
+```
+
+### What is automatic vs one-time wiring
+
+| Behavior | Automatic | Requirement |
+|---|---|---|
+| Modal/transition input blocking | Yes | Interactive objects are on UIDirector-managed layers |
+| Focus group auto-match by layer name | Yes | `focusGroup` blank + UIForge auto grouping enabled |
+| Screen focus push/pop sync | Yes | UIForge auto UIDirector sync enabled |
+| D-pad/confirm routing to focused controls | Yes | UIForge + Gamepad object in project |
+| Touch hover/tap routing | Yes | UIForge + Touch object in project |
+| Back navigation | Optional auto | See UIForge bridge methods below |
+| Input mode icon swap | No | Wire `OnInputModeChanged` once |
+| Back intercept confirmation flow | No | Wire `OnBackRequested` per case |
+
+### Minimum integration setup
+
+```text
+Event: On start of layout
+  Action: Setup: Screen Layer -> "MainMenu"
+  Action: Setup: Screen Layer -> "Settings"
+  Action: Setup: Popup Layer -> "ConfirmQuit"
+  Action: Show screen -> "MainMenu"
+```
+
+For UIForge/ButtonKit/ScrollCraft/SliderForge objects:
+- Place controls on the correct UIDirector screen layer.
+- Leave `focusGroup` blank when using layer-name auto grouping.
+- Keep UIDirector as the only owner of layer visible/interactive state.
+
+### Recommended back-flow wiring
+
+If you prefer explicit event-sheet wiring:
+
+```text
+Event: UIForge OnBackRequested
+  Action: UIDirector Go back
+```
+
+For modal confirmation interception:
+
+```text
+Event: UIForge OnBackRequested AND Screen is active "MainMenu"
+  Action: UIForge CancelBack
+  Action: UIDirector Open popup "ConfirmQuit"
+```
+
+### UIForge bridge methods (auto-back compatibility)
+
+UIDirector now provides lightweight runtime helper methods that UIForge can call directly:
+
+```js
+_goBack()
+_getLastChangedLayer()
+_getLastChangedState()
+```
+
+These map to existing UIDirector behavior:
+- `_goBack()` performs the same flow as Return to previous screen.
+- `_getLastChangedLayer()` and `_getLastChangedState()` expose transition context for sync logic.
+
+### Practical pairing notes
+
+- ButtonKit `IsClickable` naturally respects layer interactivity, so modal screens/popups block background buttons without extra events.
+- ScrollCraft and SliderForge continue to run in the active focus group while UIDirector handles screen transitions.
+- ToastBeam should be treated as an independent notification pipeline. It can coexist with modal screens, but it should not own navigation.
+
+## 20. Tips and Common Mistakes
 
 **Layers must be sublayers of the container group.** If a layer is at the root level (not inside the group), UIDirector will not find it. Check the layer editor panel.
 

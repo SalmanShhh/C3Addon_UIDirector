@@ -1,6 +1,14 @@
 import { id, addonType } from "../../config.caw.js";
 import AddonTypeMap from "../../template/addonTypeMap.js";
 
+// Keep combo mappings in one place so property parsing and ACE combo decoding stay aligned.
+const ANIM_TYPE_KEYS = ["fade", "slideLeft", "slideRight", "slideUp", "slideDown", "none", "scaleDown", "scaleUp"];
+const EASING_KEYS = ["linear", "easeIn", "easeOut", "easeInOut", "quadraticOut", "quarticOut", "exponentialOut", "circularOut", "backOut", "elasticOut", "bounceOut"];
+
+// Animation tuning constants.
+const SLIDE_BUFFER_PX = 100;
+const SCALE_OPACITY_DURATION_MS = 300;
+
 export default function (parentClass) {
   return class extends parentClass {
     // ─────────────────────────────────────────────────────────
@@ -22,13 +30,11 @@ export default function (parentClass) {
       const props = this._getInitProperties();
       if (props) {
         // COMBO properties arrive as 0-based numeric indices — map to strings.
-        const animTypeKeys = ["fade", "slideLeft", "slideRight", "slideUp", "slideDown", "none"];
-        const easingKeys   = ["linear", "easeIn", "easeOut", "easeInOut"];
         this._props = {
           uiContainerLayer:    props[0],
-          defaultAnimType:     animTypeKeys[props[2]] ?? "fade",
+          defaultAnimType:     ANIM_TYPE_KEYS[props[2]] ?? "fade",
           defaultAnimDuration: props[3],
-          defaultAnimEasing:   easingKeys[props[4]]   ?? "easeOut",
+          defaultAnimEasing:   EASING_KEYS[props[4]]   ?? "easeOut",
           persistAcrossLayouts: props[6],
           debugMode:           props[7],
           dimLayer:            props[9],
@@ -273,6 +279,8 @@ export default function (parentClass) {
         case "slideRight": return "slideLeft";
         case "slideUp":    return "slideDown";
         case "slideDown":  return "slideUp";
+        case "scaleDown":  return "scaleUp";
+        case "scaleUp":    return "scaleDown";
         default:           return type;
       }
     }
@@ -287,9 +295,44 @@ export default function (parentClass) {
 
     _applyEasing(t, easing) {
       switch (easing) {
-        case "easeIn":    return t * t;
-        case "easeOut":   return t * (2 - t);
-        case "easeInOut": return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        case "easeIn":
+          return t * t;
+        case "easeOut":
+        case "quadraticOut":
+          return 1 - (1 - t) * (1 - t);
+        case "easeInOut":
+          return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        case "quarticOut":
+          return 1 - Math.pow(1 - t, 4);
+        case "exponentialOut":
+          return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+        case "circularOut":
+          return Math.sqrt(1 - Math.pow(t - 1, 2));
+        case "backOut": {
+          const c1 = 1.70158;
+          const c3 = c1 + 1;
+          return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+        }
+        case "elasticOut": {
+          if (t === 0 || t === 1) return t;
+          const c4 = (2 * Math.PI) / 3;
+          return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+        }
+        case "bounceOut": {
+          const n1 = 7.5625;
+          const d1 = 2.75;
+          if (t < 1 / d1) return n1 * t * t;
+          if (t < 2 / d1) {
+            t -= 1.5 / d1;
+            return n1 * t * t + 0.75;
+          }
+          if (t < 2.5 / d1) {
+            t -= 2.25 / d1;
+            return n1 * t * t + 0.9375;
+          }
+          t -= 2.625 / d1;
+          return n1 * t * t + 0.984375;
+        }
         default:          return t; // linear
       }
     }
@@ -297,18 +340,24 @@ export default function (parentClass) {
     _getAnimValues(type, dir) {
       const w = this.runtime.layout.width;
       const h = this.runtime.layout.height;
+      const sx = w + SLIDE_BUFFER_PX;
+      const sy = h + SLIDE_BUFFER_PX;
       const opening = dir === "opening";
       switch (type) {
         case "fade":
           return opening ? { from: 0, to: 1 } : { from: 1, to: 0 };
         case "slideLeft":
-          return opening ? { from: -w, to: 0 } : { from: 0, to: -w };
+          return opening ? { from: -sx, to: 0 } : { from: 0, to: -sx };
         case "slideRight":
-          return opening ? { from: w,  to: 0 } : { from: 0, to: w };
+          return opening ? { from: sx,  to: 0 } : { from: 0, to: sx };
         case "slideUp":
-          return opening ? { from: -h, to: 0 } : { from: 0, to: -h };
+          return opening ? { from: -sy, to: 0 } : { from: 0, to: -sy };
         case "slideDown":
-          return opening ? { from: h,  to: 0 } : { from: 0, to: h };
+          return opening ? { from: sy,  to: 0 } : { from: 0, to: sy };
+        case "scaleDown":
+          return opening ? { from: 2, to: 1 } : { from: 1, to: 0.2 };
+        case "scaleUp":
+          return opening ? { from: 0.2, to: 1 } : { from: 1, to: 2 };
         default:
           return { from: 0, to: 0 };
       }
@@ -333,6 +382,12 @@ export default function (parentClass) {
             l.scrollY = base + value;
           }
           break;
+        case "scaleDown":
+        case "scaleUp":
+          if (typeof entry.ref.scale === "number") {
+            entry.ref.scale = value;
+          }
+          break;
       }
     }
 
@@ -352,6 +407,13 @@ export default function (parentClass) {
           for (const l of this._getAnimTargetLayers(entry.ref)) {
             l.scrollY = entry.animBaseScrolls?.get(l)?.y ?? 0;
           }
+          break;
+        case "scaleDown":
+        case "scaleUp":
+          if (typeof entry.ref.scale === "number") {
+            entry.ref.scale = entry.animBaseScale ?? 1;
+          }
+          entry.ref.opacity = entry.animBaseOpacity ?? 1;
           break;
       }
     }
@@ -373,6 +435,11 @@ export default function (parentClass) {
         return;
       }
 
+      entry.animBaseOpacity = entry.ref.opacity;
+      if (effectiveType === "scaleDown" || effectiveType === "scaleUp") {
+        entry.animBaseScale = typeof entry.ref.scale === "number" ? entry.ref.scale : 1;
+      }
+
       // Capture current scroll of each target layer so _applyAnimValue can use deltas.
       const targetLayers = this._getAnimTargetLayers(entry.ref);
       entry.animBaseScrolls = new Map();
@@ -390,6 +457,17 @@ export default function (parentClass) {
       entry.animTo        = to;
       entry.animOnComplete = onComplete;
 
+      // Match Aekiro's scale behavior: opacity uses a short, separate tween so elastic/back easings
+      // affect only scale and not alpha readability.
+      entry.animOpacityEnabled  = (effectiveType === "scaleDown" || effectiveType === "scaleUp");
+      entry.animOpacityElapsed  = 0;
+      entry.animOpacityDuration = SCALE_OPACITY_DURATION_MS;
+      if (entry.animOpacityEnabled) {
+        entry.animOpacityFrom = dir === "opening" ? 0 : (entry.ref.opacity ?? 1);
+        entry.animOpacityTo   = dir === "opening" ? (entry.animBaseOpacity ?? 1) : 0;
+        entry.ref.opacity = entry.animOpacityFrom;
+      }
+
       entry.ref.isVisible     = true;
       entry.ref.isInteractive = false;
       this._setLayerCollisions(entry, false);
@@ -404,11 +482,15 @@ export default function (parentClass) {
       const config = this._getAnimConfig(entry);
       const effectiveType = entry.animEffectiveType ?? config.type;
       this._applyAnimValue(entry, effectiveType, entry.animTo);
+      if (entry.animOpacityEnabled) {
+        entry.ref.opacity = entry.animOpacityTo;
+      }
       this._resetAnimProperties(entry, effectiveType);
 
       entry.animating    = false;
       entry.animDir      = "";
       entry.animProgress = 1;
+      entry.animOpacityEnabled = false;
       this._animatingLayers.delete(entry.name);
 
       const cb = entry.animOnComplete;
@@ -420,18 +502,31 @@ export default function (parentClass) {
     }
 
     _tickAnimations(dt) {
-      for (const name of this._animatingLayers) {
+      // Iterate over a snapshot so callbacks that end/replace animations cannot invalidate traversal.
+      for (const name of [...this._animatingLayers]) {
         const entry         = this._getEntry(name);
+        if (!entry) {
+          this._animatingLayers.delete(name);
+          continue;
+        }
         const config        = this._getAnimConfig(entry);
         const effectiveType = entry.animEffectiveType ?? config.type;
 
+        const duration = Math.max(0, config.duration ?? 0);
         entry.animElapsed += dt;
-        const t      = Math.min(entry.animElapsed / config.duration, 1);
+        const t      = duration <= 0 ? 1 : Math.min(entry.animElapsed / duration, 1);
         const easedT = this._applyEasing(t, config.easing);
         const value  = entry.animFrom + (entry.animTo - entry.animFrom) * easedT;
 
         entry.animProgress = t;
         this._applyAnimValue(entry, effectiveType, value);
+
+        if (entry.animOpacityEnabled) {
+          entry.animOpacityElapsed += dt;
+          const ot = Math.min(entry.animOpacityElapsed / entry.animOpacityDuration, 1);
+          const easedOpacityT = this._applyEasing(ot, "quarticOut");
+          entry.ref.opacity = entry.animOpacityFrom + (entry.animOpacityTo - entry.animOpacityFrom) * easedOpacityT;
+        }
 
         if (t >= 1) this._completeAnim(entry);
       }
@@ -768,6 +863,69 @@ export default function (parentClass) {
     // Action implementations
     // ─────────────────────────────────────────────────────────
 
+    // UI Suite bridge methods (used by UIForge when available).
+    // These intentionally forward to existing UIDirector state/actions.
+    _goBack() {
+      this._actPopFocusStack();
+    }
+
+    _getLastChangedLayer() {
+      return this._lastChangedLayer;
+    }
+
+    _getLastChangedState() {
+      return this._lastChangedState;
+    }
+
+    _createLayerEntry({
+      name,
+      ref,
+      role,
+      state = "visible",
+      prevState = "visible",
+      isModal = true,
+      manageCollisions = false,
+      mirrorOnBack = false,
+      customData = new Map(),
+    }) {
+      // Centralized defaults keep tracking and save-load rehydration in sync.
+      return {
+        name,
+        ref,
+        role,
+        state,
+        prevState,
+        isModal,
+        manageCollisions,
+        customData,
+        mirrorOnBack,
+        dismissTimer: null,
+        animType: null,
+        animDuration: null,
+        animEasing: null,
+        animating: false,
+        animDir: "",
+        animProgress: 0,
+        animElapsed: 0,
+        animFrom: 0,
+        animTo: 0,
+        animOnComplete: null,
+        pendingState: null,
+        animBaseScrolls: null,
+        animEffectiveType: null,
+        animBaseScale: 1,
+        animBaseOpacity: 1,
+        animOpacityEnabled: false,
+        animOpacityElapsed: 0,
+        animOpacityDuration: SCALE_OPACITY_DURATION_MS,
+        animOpacityFrom: 1,
+        animOpacityTo: 1,
+        runtimeTimescale: null,
+        savedRuntimeTimescale: null,
+        _savedCollisions: null,
+      };
+    }
+
     _actTrackLayer(layerName, role, isModal, manageCollisions) {
       const ref = this._resolveLayer(layerName);
       if (!ref) {
@@ -778,20 +936,13 @@ export default function (parentClass) {
         this._log(`Already tracked: ${layerName}`);
         return;
       }
-      const entry = {
-        name: layerName, ref,
-        role, state: "visible", prevState: "visible",
-        isModal, manageCollisions,
-        customData: new Map(),
-        mirrorOnBack: false, dismissTimer: null,
-        animType: null, animDuration: null, animEasing: null,
-        animating: false, animDir: "", animProgress: 0,
-        animElapsed: 0, animFrom: 0, animTo: 0,
-        animOnComplete: null, pendingState: null,
-        animBaseScrolls: null, animEffectiveType: null,
-        runtimeTimescale: null, savedRuntimeTimescale: null,
-        _savedCollisions: null,
-      };
+      const entry = this._createLayerEntry({
+        name: layerName,
+        ref,
+        role,
+        isModal,
+        manageCollisions,
+      });
       this._layers.set(layerName, entry);
       if (manageCollisions) {
         this._setLayerCollisions(entry, entry.ref.isInteractive);
@@ -804,6 +955,7 @@ export default function (parentClass) {
       if (entry?.dismissTimer !== null) {
         clearTimeout(entry.dismissTimer);
       }
+      this._animatingLayers.delete(layerName);
       this._focusStack = this._focusStack.filter(f => f.layerName !== layerName);
       this._popupStack = this._popupStack.filter(n => n !== layerName);
       if (this._activeTooltip === layerName) this._activeTooltip = null;
@@ -961,6 +1113,7 @@ export default function (parentClass) {
       this._trigger("OnLayerClosing");
       this._updateDimLayer();
 
+      // Back navigation is the only path that enables "mirror on back" animation behavior.
       this._startAnim(entry, "closing", () => {
         if (entry) {
           this._applyState(entry, entry.prevState);
@@ -1222,22 +1375,17 @@ export default function (parentClass) {
 
       for (const l of (o.layers ?? [])) {
         const ref = this._resolveLayer(l.name);
-        this._layers.set(l.name, {
-          name:             l.name,
+        this._layers.set(l.name, this._createLayerEntry({
+          name: l.name,
           ref,
-          role:             l.role,
-          state:            l.state,
-          prevState:        l.prevState,
-          isModal:          l.isModal          ?? true,
+          role: l.role,
+          state: l.state,
+          prevState: l.prevState,
+          isModal: l.isModal ?? true,
           manageCollisions: l.manageCollisions ?? false,
-          customData:       new Map(l.customData ?? []),
-          mirrorOnBack: l.mirrorOnBack ?? false, dismissTimer: null,
-          animType: null, animDuration: null, animEasing: null,
-          animating: false, animDir: "", animProgress: 0,
-          animElapsed: 0, animFrom: 0, animTo: 0,
-          animOnComplete: null, pendingState: null,
-          animBaseScrolls: null, animEffectiveType: null,
-        });
+          customData: new Map(l.customData ?? []),
+          mirrorOnBack: l.mirrorOnBack ?? false,
+        }));
       }
 
       for (const name of (o.focusStack ?? [])) {

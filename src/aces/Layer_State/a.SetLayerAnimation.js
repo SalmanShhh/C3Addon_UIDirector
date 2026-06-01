@@ -27,6 +27,8 @@ export const config = {
         { slideUp: "Slide Up" },
         { slideDown: "Slide Down" },
         { none: "None (instant)" },
+        { scaleDown: "Scale Down" },
+        { scaleUp: "Scale Up" },
       ],
     },
     {
@@ -47,12 +49,19 @@ export const config = {
         { easeIn: "Ease In" },
         { easeOut: "Ease Out" },
         { easeInOut: "Ease In Out" },
+        { quadraticOut: "Quadratic Out" },
+        { quarticOut: "Quartic Out" },
+        { exponentialOut: "Exponential Out" },
+        { circularOut: "Circular Out" },
+        { backOut: "Back Out" },
+        { elasticOut: "Elastic Out" },
+        { bounceOut: "Bounce Out" },
       ],
     },
     {
       id: "mirrorOnBack",
       name: "Mirror close direction",
-      desc: "When true, the closing animation plays in the opposite direction to the opening animation. Only affects slide animations. Ignored for fade and none.",
+      desc: "When true, the closing animation plays in the opposite direction to the opening animation. Affects slide and scale animations. Ignored for fade and none.",
       type: "boolean",
       initialValue: "false",
     },
@@ -62,7 +71,7 @@ export const config = {
 export const expose = true;
 
 export default function (layerName, type, duration, easing, mirrorOnBack) {
-  const animTypeKeys = ["fade", "slideLeft", "slideRight", "slideUp", "slideDown", "none"];
-  const easingKeys   = ["linear", "easeIn", "easeOut", "easeInOut"];
+  const animTypeKeys = ["fade", "slideLeft", "slideRight", "slideUp", "slideDown", "none", "scaleDown", "scaleUp"];
+  const easingKeys   = ["linear", "easeIn", "easeOut", "easeInOut", "quadraticOut", "quarticOut", "exponentialOut", "circularOut", "backOut", "elasticOut", "bounceOut"];
   this._actSetLayerAnimation(layerName, this._combo(type, animTypeKeys), duration, this._combo(easing, easingKeys), mirrorOnBack);
 }
