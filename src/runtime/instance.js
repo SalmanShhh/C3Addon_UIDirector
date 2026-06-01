@@ -475,7 +475,7 @@ export default function (parentClass) {
       this._applyAnimValue(entry, effectiveType, from);
       this._setTicking(true);
       this._animatingLayers.add(entry.name);
-      this._log(`Anim start: ${entry.name} ${dir}`);  
+      this._log(`Anim start: ${entry.name} ${dir}`);
     }
 
     _completeAnim(entry) {
@@ -863,18 +863,63 @@ export default function (parentClass) {
     // Action implementations
     // ─────────────────────────────────────────────────────────
 
+    _markLastChanged(layerName, state) {
+      this._lastChangedLayer = layerName;
+      this._lastChangedState = state;
+    }
+
+    _emitLayerStateChanged() {
+      this._trigger("OnLayerStateChanged");
+      this._trigger("OnAnyLayerStateChanged");
+    }
+
+    _cancelDismissTimer(entry) {
+      if (entry?.dismissTimer === null || entry?.dismissTimer === undefined) {
+        return false;
+      }
+      clearTimeout(entry.dismissTimer);
+      entry.dismissTimer = null;
+      return true;
+    }
+
+    // Centralized transition wrappers keep action methods focused on intent.
+    _runOpeningTransition(entry, onOpened) {
+      this._trigger("OnLayerOpening");
+      this._startAnim(entry, "opening", onOpened);
+    }
+
+    _runClosingTransition(entry, onClosed, isBackNav = false) {
+      this._trigger("OnLayerClosing");
+      this._startAnim(entry, "closing", onClosed, isBackNav);
+    }
+
+    _prepareForClosing(entry, pendingState = null) {
+      entry.ref.isInteractive = false;
+      this._setLayerCollisions(entry, false);
+      entry.pendingState = pendingState;
+    }
+
+    _applyAndClearPendingState(entry) {
+      this._applyState(entry, entry.pendingState);
+      entry.pendingState = null;
+    }
+
     // UI Suite bridge methods (used by UIForge when available).
     // These intentionally forward to existing UIDirector state/actions.
-    _goBack() {
+    _navigateBack() {
       this._actPopFocusStack();
     }
 
+    _goBack() {
+      this._navigateBack();
+    }
+
     _getLastChangedLayer() {
-      return this._lastChangedLayer;
+      return this._lastChangedLayer ?? "";
     }
 
     _getLastChangedState() {
-      return this._lastChangedState;
+      return this._lastChangedState ?? "";
     }
 
     _createLayerEntry({
@@ -952,9 +997,7 @@ export default function (parentClass) {
 
     _actUntrackLayer(layerName) {
       const entry = this._getEntry(layerName);
-      if (entry?.dismissTimer !== null) {
-        clearTimeout(entry.dismissTimer);
-      }
+      this._cancelDismissTimer(entry);
       this._animatingLayers.delete(layerName);
       this._focusStack = this._focusStack.filter(f => f.layerName !== layerName);
       this._popupStack = this._popupStack.filter(n => n !== layerName);
@@ -964,7 +1007,7 @@ export default function (parentClass) {
 
     _actUntrackAllLayers() {
       for (const entry of this._layers.values()) {
-        if (entry.dismissTimer !== null) clearTimeout(entry.dismissTimer);
+        this._cancelDismissTimer(entry);
       }
       this._layers.clear();
       this._focusStack = [];
@@ -978,33 +1021,24 @@ export default function (parentClass) {
       if (!entry) return;
 
       entry.prevState = entry.state;
-      this._lastChangedLayer = layerName;
-      this._lastChangedState = state;
+      this._markLastChanged(layerName, state);
 
       const config = this._getAnimConfig(entry);
 
       if ((state === "visible" || state === "focused") && config.type !== "none") {
-        this._trigger("OnLayerOpening");
-        this._startAnim(entry, "opening", () => {
+        this._runOpeningTransition(entry, () => {
           this._applyState(entry, state);
-          this._trigger("OnLayerStateChanged");
-          this._trigger("OnAnyLayerStateChanged");
+          this._emitLayerStateChanged();
         });
       } else if ((state === "hidden" || state === "disabled") && config.type !== "none") {
-        entry.pendingState = state;
-        entry.ref.isInteractive = false;
-        this._setLayerCollisions(entry, false);
-        this._trigger("OnLayerClosing");
-        this._startAnim(entry, "closing", () => {
-          this._applyState(entry, entry.pendingState);
-          entry.pendingState = null;
-          this._trigger("OnLayerStateChanged");
-          this._trigger("OnAnyLayerStateChanged");
+        this._prepareForClosing(entry, state);
+        this._runClosingTransition(entry, () => {
+          this._applyAndClearPendingState(entry);
+          this._emitLayerStateChanged();
         });
       } else {
         this._applyState(entry, state);
-        this._trigger("OnLayerStateChanged");
-        this._trigger("OnAnyLayerStateChanged");
+        this._emitLayerStateChanged();
       }
     }
 
@@ -1074,18 +1108,15 @@ export default function (parentClass) {
 
       entry.prevState          = entry.state;
       this._lastFocusedLayer   = layerName;
-      this._lastChangedLayer   = layerName;
-      this._lastChangedState   = "focused";
+      this._markLastChanged(layerName, "focused");
 
       this._applyRuntimeTimescale(entry);
-      this._trigger("OnLayerOpening");
       this._updateDimLayer();
 
-      this._startAnim(entry, "opening", () => {
+      this._runOpeningTransition(entry, () => {
         this._applyState(entry, "focused");
         this._trigger("OnLayerFullyOpened");
-        this._trigger("OnLayerStateChanged");
-        this._trigger("OnAnyLayerStateChanged");
+        this._emitLayerStateChanged();
       });
 
       this._log(`Focused layer ${layerName}. Stack depth: ${this._focusStack.length}`);
@@ -1106,15 +1137,13 @@ export default function (parentClass) {
       if (entry?.ref) {
         const containerAncestor = this._getContainerDirectChild(entry.ref);
         this._moveSublayerToIndex(containerAncestor, frame.savedIndex);
-        entry.ref.isInteractive = false;
-        this._setLayerCollisions(entry, false);
+        this._prepareForClosing(entry);
       }
 
-      this._trigger("OnLayerClosing");
       this._updateDimLayer();
 
       // Back navigation is the only path that enables "mirror on back" animation behavior.
-      this._startAnim(entry, "closing", () => {
+      this._runClosingTransition(entry, () => {
         if (entry) {
           this._applyState(entry, entry.prevState);
           this._restoreRuntimeTimescale(entry);
@@ -1155,20 +1184,17 @@ export default function (parentClass) {
       entry.prevState = entry.state;
       this._popupStack.push(layerName);
 
-      this._lastChangedLayer = layerName;
-      this._lastChangedState = "visible";
+      this._markLastChanged(layerName, "visible");
 
       this._applyRuntimeTimescale(entry);
-      this._trigger("OnLayerOpening");
       this._updateDimLayer();
 
-      this._startAnim(entry, "opening", () => {
+      this._runOpeningTransition(entry, () => {
         entry.ref.isVisible     = true;
         entry.ref.isInteractive = true;
         this._setLayerCollisions(entry, true);
         entry.state = "visible";
-        this._trigger("OnLayerStateChanged");
-        this._trigger("OnAnyLayerStateChanged");
+        this._emitLayerStateChanged();
       });
     }
 
@@ -1177,30 +1203,22 @@ export default function (parentClass) {
       if (!entry || entry.role !== "popup") return;
 
       // Cancel any scheduled auto-dismiss
-      if (entry.dismissTimer !== null) {
-        clearTimeout(entry.dismissTimer);
-        entry.dismissTimer = null;
-      }
+      this._cancelDismissTimer(entry);
 
-      entry.ref.isInteractive = false;
-      this._setLayerCollisions(entry, false);
-      entry.pendingState = "hidden";
+      this._prepareForClosing(entry, "hidden");
 
-      this._lastChangedLayer = layerName;
-      this._lastChangedState = "hidden";
+      this._markLastChanged(layerName, "hidden");
 
-      this._trigger("OnLayerClosing");
       this._updateDimLayer();
 
-      this._startAnim(entry, "closing", () => {
+      this._runClosingTransition(entry, () => {
         entry.ref.isVisible = false;
         entry.state       = "hidden";
         entry.prevState   = "visible";
         this._popupStack  = this._popupStack.filter(n => n !== layerName);
         this._restoreRuntimeTimescale(entry);
         this._updateDimLayer();
-        this._trigger("OnLayerStateChanged");
-        this._trigger("OnAnyLayerStateChanged");
+        this._emitLayerStateChanged();
       });
     }
 
@@ -1221,11 +1239,9 @@ export default function (parentClass) {
       entry.state     = "visible";
       this._activeTooltip = layerName;
 
-      this._lastChangedLayer = layerName;
-      this._lastChangedState = "visible";
+      this._markLastChanged(layerName, "visible");
 
-      this._trigger("OnLayerStateChanged");
-      this._trigger("OnAnyLayerStateChanged");
+      this._emitLayerStateChanged();
     }
 
     _actHideTooltip(layerName) {
@@ -1237,11 +1253,9 @@ export default function (parentClass) {
       entry.state       = "hidden";
       if (this._activeTooltip === layerName) this._activeTooltip = null;
 
-      this._lastChangedLayer = layerName;
-      this._lastChangedState = "hidden";
+      this._markLastChanged(layerName, "hidden");
 
-      this._trigger("OnLayerStateChanged");
-      this._trigger("OnAnyLayerStateChanged");
+      this._emitLayerStateChanged();
     }
 
     _actHideActiveTooltip() {
@@ -1271,7 +1285,7 @@ export default function (parentClass) {
       this._actShowPopup(layerName);
       const entry = this._getEntry(layerName);
       if (!entry) return;
-      if (entry.dismissTimer !== null) clearTimeout(entry.dismissTimer);
+      this._cancelDismissTimer(entry);
       entry.dismissTimer = setTimeout(() => {
         entry.dismissTimer = null;
         this._actHidePopup(layerName);
@@ -1304,8 +1318,7 @@ export default function (parentClass) {
       }
 
       this._updateDimLayer();
-      this._trigger("OnLayerStateChanged");
-      this._trigger("OnAnyLayerStateChanged");
+      this._emitLayerStateChanged();
       this._log(`Navigated back to root: ${this._focusStack[0]?.layerName}`);
     }
 
@@ -1325,8 +1338,7 @@ export default function (parentClass) {
       } else if (entry.pendingState !== null) {
         this._applyState(entry, entry.pendingState);
         entry.pendingState = null;
-        this._trigger("OnLayerStateChanged");
-        this._trigger("OnAnyLayerStateChanged");
+        this._emitLayerStateChanged();
       }
     }
 
