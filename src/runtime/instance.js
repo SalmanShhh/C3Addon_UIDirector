@@ -607,6 +607,24 @@ export default function (parentClass) {
       return results;
     }
 
+    // Duck-typed discovery for per-object transition behaviors (e.g. FlourishCue).
+    // No hardcoded addon IDs so companion addons can integrate via method contract.
+    _collectFlourishCue(layerRef) {
+      const result = [];
+      for (const inst of this._getAllInstancesOnLayer(layerRef)) {
+        const behaviors = inst.behaviors;
+        if (!behaviors) continue;
+        for (const key in behaviors) {
+          const b = behaviors[key];
+          if (b && typeof b._playOpen === "function" && typeof b._playClose === "function") {
+            result.push(b);
+            break;
+          }
+        }
+      }
+      return result;
+    }
+
     // ─────────────────────────────────────────────────────────
     // Timescale helpers
     // ─────────────────────────────────────────────────────────
@@ -882,15 +900,57 @@ export default function (parentClass) {
       return true;
     }
 
+    _makeBarrier(count, done) {
+      if (count <= 0) {
+        queueMicrotask(() => done());
+        return () => {};
+      }
+      let remaining = count;
+      let fired = false;
+      return () => {
+        if (fired) return;
+        remaining--;
+        if (remaining <= 0) {
+          fired = true;
+          done();
+        }
+      };
+    }
+
     // Centralized transition wrappers keep action methods focused on intent.
     _runOpeningTransition(entry, onOpened) {
       this._trigger("OnLayerOpening");
-      this._startAnim(entry, "opening", onOpened);
+
+      const motions = this._collectFlourishCue(entry.ref);
+      const signal = this._makeBarrier(1 + motions.length, onOpened);
+
+      // Ensure objects can run their own intro animation immediately.
+      entry.ref.isVisible = true;
+
+      for (const m of motions) {
+        try {
+          m._playOpen(() => signal());
+        } catch (_) {
+          signal();
+        }
+      }
+      this._startAnim(entry, "opening", () => signal());
     }
 
     _runClosingTransition(entry, onClosed, isBackNav = false) {
       this._trigger("OnLayerClosing");
-      this._startAnim(entry, "closing", onClosed, isBackNav);
+
+      const motions = this._collectFlourishCue(entry.ref);
+      const signal = this._makeBarrier(1 + motions.length, onClosed);
+
+      for (const m of motions) {
+        try {
+          m._playClose(() => signal());
+        } catch (_) {
+          signal();
+        }
+      }
+      this._startAnim(entry, "closing", () => signal(), isBackNav);
     }
 
     _prepareForClosing(entry, pendingState = null) {
@@ -1340,11 +1400,22 @@ export default function (parentClass) {
         entry.pendingState = null;
         this._emitLayerStateChanged();
       }
+
+      for (const m of this._collectFlourishCue(entry.ref)) {
+        if (m._isAnimating?.()) m._finishAnimation?.();
+      }
     }
 
     _actSkipAllAnimations() {
       for (const name of [...this._animatingLayers]) {
         this._completeAnim(this._getEntry(name));
+      }
+
+      for (const entry of this._layers.values()) {
+        if (!entry.ref) continue;
+        for (const m of this._collectFlourishCue(entry.ref)) {
+          if (m._isAnimating?.()) m._finishAnimation?.();
+        }
       }
     }
 
