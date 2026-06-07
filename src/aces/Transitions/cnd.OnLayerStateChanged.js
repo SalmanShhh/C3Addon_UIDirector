@@ -2,7 +2,7 @@ export const config = {
   listName: "On layer state changed",
   displayText: "On layer {0} state changed",
   description:
-    "Triggers after a specific layer finishes changing state. Use to run logic that depends on the final state, like showing a retry button after Game Over appears.",
+    "Triggers after a specific layer finishes changing state. Use LayerState / PreviousLayerState inside. Good for logic that depends on the final state.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

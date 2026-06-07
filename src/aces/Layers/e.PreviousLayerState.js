@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    "Returns a layer's animation direction: 'opening', 'closing', or empty. Use to play different sounds based on whether a screen is coming in or going out.",
+    "Returns the state a layer was in before its last change, or empty. Use to restore a layer after a temporary change.",
   highlight: false,
   deprecated: false,
   params: [
@@ -17,5 +17,5 @@ export const config = {
 export const expose = false;
 
 export default function (layerName) {
-  return this._layers.get(layerName)?.animDir ?? "";
+  return this._layers.get(layerName)?.prevState ?? "";
 }

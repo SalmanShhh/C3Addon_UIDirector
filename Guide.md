@@ -1,6 +1,8 @@
 # UIDirector - Complete Guide
 
-**UIDirector** is a Construct 3 plugin that takes control of your UI layers so you never have to manually set layer visibility, interactive state, or Z-order again. You register your layers once, then drive everything through actions.
+**UIDirector** is a Construct 3 plugin that turns ordinary group layers into a fully managed UI system. You register a layer once as a **screen**, **popup**, or **tooltip**, then drive visibility, interactivity, Z-order, animations, modal blocking, and back-navigation through a handful of plain actions. You never set layer visible/interactive/Z-order by hand again.
+
+This guide reflects the consolidated **v1.2.0.0 action surface**: related actions are merged into single combo-parameter actions (`Setup layer`, `Go to screen`, `Set layer state`, `Popup`, `Tooltip`), the names are beginner-friendly, and the integration surface other addons rely on (`LastChangedLayer`, `LastChangedState`, `CanGoBack`, `Go back`, and the per-object animation contract) is locked in.
 
 ---
 
@@ -31,19 +33,21 @@
 
 ## 1. Scenarios Where This Addon Excels
 
-**Linear menu navigation** - Main Menu -> Settings -> Audio. Each `Go back` returns one level and restores the previous screen exactly. No manual tracking needed.
+**Linear menu navigation** - Main Menu → Settings → Audio. Each `Go back` returns one level and restores the previous screen exactly. No manual tracking needed.
 
-**Persistent HUD alongside changing screens** - A HUD that stays visible regardless of what screen is open. Register it with `Blocks others: false` and set it to `visible` directly, bypassing the navigation history. It sits alongside screens without interfering with back-navigation.
+**Persistent HUD alongside changing screens** - A HUD that stays visible regardless of what screen is open. Register it non-modal (`Setup layer (advanced)` with modal off) and `Set` it to `Visible` directly, bypassing the navigation history. It sits alongside screens without interfering with back-navigation.
 
-**Phase-based in-game UI** - Separate Start, Playing, and Results screens. `Navigate to screen` manages Z-order, animations, and state transitions automatically regardless of which phase transitions to which.
+**Phase-based in-game UI** - Separate Start, Playing, and Results screens. `Go to screen` manages Z-order, animations, and state transitions automatically regardless of which phase transitions to which.
 
-**Modal confirmation dialogs** - A popup appears above the current screen and blocks all background input. When the player responds and the popup closes, background interactivity is automatically restored. No manual `Set layer interactive` events required.
+**Modal confirmation dialogs** - A popup appears above the current screen and blocks all background input. When the player responds and the popup closes, background interactivity is automatically restored. No manual `Set input enabled` events required.
 
-**Deep sub-navigation with a Skip Back** - Settings -> Audio -> Advanced Audio. A single `Return to screen "Settings"` instantly collapses the entire stack back to that point, regardless of how many intermediate screens exist.
+**Deep sub-navigation with a Skip Back** - Settings → Audio → Advanced Audio. A single `Go to screen "Settings" (Return to)` instantly collapses the entire stack back to that point, regardless of how many intermediate screens exist.
 
-**Animation-safe logic** - Layers are never interactive while animating. The `On layer fully opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
+**Animation-safe logic** - Layers are never interactive while animating. The `On layer opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
 
-**Pause menus that auto-freeze and restore the game** - `Set layer timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §17.
+**Pause menus that auto-freeze and restore the game** - `Set timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §17.
+
+**Per-object entrance animations that stay in sync** - When a layer opens, UIDirector waits for both its own layer tween *and* any per-object animation behaviors (like FlourishCue) before firing `On layer opened`. Staggered button entrances "just work" without you tracking each one.
 
 ---
 
@@ -51,7 +55,7 @@
 
 ### The problem UIDirector solves
 
-Managing multiple UI screens in Construct 3 without a dedicated system means writing the same types of events repeatedly, for every screen and every transition:
+Managing multiple UI screens in Construct 3 without a dedicated system means writing the same events repeatedly, for every screen and every transition:
 
 - Toggle each layer's visibility and interactive state manually
 - Re-order layers so the correct one sits on top
@@ -59,19 +63,19 @@ Managing multiple UI screens in Construct 3 without a dedicated system means wri
 - Record which screen was shown before so you can return to it
 - Restore every other layer's interactive state exactly as it was before a modal screen appeared
 
-The more screens a project has, the more this logic multiplies and diverges. Bugs appear when one navigation path misses a `Set layer interactive` call, or when a new screen is added and every other screen's event sheet needs updating to account for it.
+The more screens a project has, the more this logic multiplies and diverges. Bugs appear when one navigation path misses a `Set interactive` call, or when a new screen is added and every other screen's event sheet needs updating to account for it.
 
-UIDirector replaces all of it with a declarative model. Register your layers once at layout start. After that, a single action like `Navigate to screen` or `Go back` handles visibility, interactivity, Z-order, animations, and state restoration - automatically and consistently.
+UIDirector replaces all of it with a declarative model. Register your layers once at layout start. After that, a single action like `Go to screen` or `Go back` handles visibility, interactivity, Z-order, animations, and state restoration - automatically and consistently.
 
 ---
 
 ### The ownership model
 
-Once a layer is tracked, **UIDirector owns it.** It controls `visible`, `interactive`, and Z-order on that layer for the rest of the layout's life. Do not set these properties directly on a tracked layer - UIDirector will override them on the next state change, making manual sets unreliable.
+Once a layer is tracked, **UIDirector owns it.** It controls `isVisible`, `isInteractive`, and Z-order on that layer for the rest of the layout's life. Do not set these properties directly on a tracked layer - UIDirector will override them on the next state change, making manual sets unreliable.
 
-The one exception is `Set layer input enabled`, a deliberate one-shot override. UIDirector reclaims control on the next state transition.
+The one exception is `Set input enabled`, a deliberate one-shot override. UIDirector reclaims control on the next state transition.
 
-> **Rule:** Use UIDirector actions exclusively on tracked layers. Never call `Set layer visible` or `Set layer interactive` on a layer UIDirector manages.
+> **Rule:** Use UIDirector actions exclusively on tracked layers. Never use C3's built-in "Set layer visible" / "Set layer interactive" system actions on a layer UIDirector manages.
 
 ---
 
@@ -83,25 +87,25 @@ UIDirector operates exclusively inside a single **container group layer** - the 
 - You can have as many other groups and layers in your layout as you need; UIDirector ignores them.
 - The container is a purely organisational boundary at runtime - it has no visual effect of its own.
 
-This container-based workflow is a natural fit for how Construct 3 structures projects. All your UI lives in one place, isolated from gameplay, easy to find, and straightforward to hand off to UIDirector.
+> **Tip:** Leave **UI Container Layer** blank to search the whole layout instead of a single container group.
 
 **Combining the container with C3's Global Layers**
 
-The container workflow becomes significantly more powerful when paired with Construct 3's built-in **Global Layers** feature. In C3, marking a layer as Global in the layer properties panel makes that layer - and all its sublayers - persist across layout changes. The layer object is never destroyed or recreated when the game switches from one layout to another.
+The container workflow becomes significantly more powerful when paired with Construct 3's built-in **Global Layers** feature. In C3, marking a layer as Global makes that layer - and all its sublayers - persist across layout changes. The layer object is never destroyed or recreated when the game switches layouts.
 
 This pairs directly with UIDirector's **Persist Across Layouts** property:
 
 - **C3 Global Layers** keeps the actual layer objects alive and in their current visual state during a layout transition. The player sees no flash, no disappearance, no reset.
-- **Persist Across Layouts** keeps UIDirector's internal state - the registered layers, the focus stack, and each layer's current state - intact across the same transition.
+- **Persist Across Layouts** keeps UIDirector's internal state - the registered layers, the focus stack, popups, and each layer's current state - intact across the same transition.
 
-Together, they give you a UI that is completely seamless across level changes. The HUD stays on screen. The navigation history is unchanged. The current active screen remains active. Going from Level 1 to Level 2 is invisible from the UI's perspective.
+Together, they give you a UI that is seamless across level changes. The HUD stays on screen. The navigation history is unchanged. The current active screen remains active.
 
 **Recommended container setup:**
 
-1. Name the container with a `!` prefix - for example `!UI`. The `!` causes it to sort to the top of the layer panel alphabetically, making it immediately identifiable as the persistent UI container and visually separating it from gameplay layers.
-2. In C3's layer panel, open the container layer's properties and enable **Global**.
+1. Name the container with a `!` prefix - for example `!UI`. The `!` sorts it to the top of the layer panel, making it immediately identifiable.
+2. In C3's layer panel, open the container's properties and enable **Global**.
 3. Enable **Persist Across Layouts** in UIDirector's plugin properties.
-4. Register your layers once - either in the global event sheet or in the first layout's `On start of layout` behind a "first run" boolean. Because the layers are global and UIDirector's state persists, registration only needs to happen once per game session, not once per layout.
+4. Register your layers once - in the global event sheet or in the first layout's `On start of layout` behind a "first run" boolean.
 
 With this setup, layout changes become transparent to the player. The game world changes; the UI does not.
 
@@ -111,10 +115,11 @@ With this setup, layout changes become transparent to the player. The game world
 
 | Concept | What it means |
 |---|---|
-| **Tracking** | Call `Setup: Screen Layer` (or `Track layer`) once per layer at layout start. UIDirector then owns that layer. |
-| **Role** | Every tracked layer is `normal` (navigable screen), `popup` (overlay above screens), or `tooltip` (display-only, always on top). See §5. |
+| **Tracking** | Call `Setup layer` once per layer at layout start. UIDirector then owns that layer. |
+| **Role** | Every tracked layer is a `Screen` (navigable, on the focus stack), `Popup` (overlay above screens), or `Tooltip` (single transient hint, off the stacks). See §5. |
 | **State** | Every tracked layer is always in one of four states: `hidden`, `visible`, `disabled`, or `focused`. See §6. |
-| **Focus stack** | A navigation history. Navigating to a screen pushes a frame; going back pops it and restores the previous state exactly. See §7. |
+| **Focus stack** | A navigation history. Going to a screen with Push pushes a frame; `Go back` pops it and restores the previous state exactly. See §7. |
+| **Dim layer** | An optional scrim layer UIDirector shows automatically behind any modal screen or popup. See §9. |
 
 ---
 
@@ -122,65 +127,65 @@ With this setup, layout changes become transparent to the player. The game world
 
 ### Step 1 - Install the addon
 
-Install `salmanshh_uidirector.c3addon` via the Construct 3 addon manager.
+Install `salmanshh_uidirector.c3addon` via the Construct 3 addon manager (Menu → View → Addon Manager → Install new addon).
 
 ### Step 2 - Create your layer structure
 
-In the C3 layer editor, create a **group layer** and put all your UI sublayers inside it. Name it with a `!` prefix (e.g. `!UI`) so it sorts to the top of the layer panel and is immediately recognisable as the UI container:
+In the C3 layer editor, create a **group layer** and put all your UI sublayers inside it. Name it with a `!` prefix (e.g. `!UI`) so it sorts to the top of the layer panel:
 
 ```
 [!UI]                ← group layer - this is your container (Global, sorts to top)
-    [Tooltip]        ← will be registered as a tooltip
-    [Confirm Dialog] ← will be registered as a popup
-    [Pause Menu]     ← will be registered as a normal screen
-    [Inventory]      ← will be registered as a normal screen
-    [HUD]            ← will be registered as a normal screen (non-blocking)
-    [Main Menu]      ← will be registered as a normal screen
+    [Tooltip]        ← will be registered as a Tooltip
+    [Confirm Dialog] ← will be registered as a Popup
+    [Pause Menu]     ← will be registered as a Screen
+    [Inventory]      ← will be registered as a Screen
+    [HUD]            ← will be registered as a Screen (non-modal)
+    [Main Menu]      ← will be registered as a Screen
 [Background]         ← untracked game layer, UIDirector ignores this
 [Game World]         ← untracked, UIDirector ignores this
 ```
 
 The order of sublayers inside the container does not matter - UIDirector reorders them automatically at runtime.
 
-> **Recommended:** In C3's layer panel, open `!UI`'s layer properties and enable **Global**. This makes the container and all its sublayers persist across layout changes. Paired with UIDirector's **Persist Across Layouts** property, your entire UI state - screens, navigation history, popups - carries over seamlessly when the game moves to a new layout. See §2 for a full explanation of how this works.
-
 ### Step 3 - Add the UIDirector object
 
-Add a **UIDirector** object to your layout (like a global plugin, it is single-instance). Configure its properties (see §4).
+Add a **UIDirector** object to your project (it is a single-global plugin - one instance serves the whole game). Configure its properties (see §4).
 
 ### Step 4 - Register layers at layout start
 
-Use the **Common** category actions for the simplest setup:
-
 ```
 Event: On start of layout
-  Action: Setup: Screen Layer   -> "Main Menu"
-  Action: Setup: Screen Layer   -> "HUD"
-  Action: Setup: Screen Layer   -> "Pause Menu"
-  Action: Setup: Screen Layer   -> "Inventory"
-  Action: Setup: Popup Layer    -> "Confirm Dialog"
-  Action: Setup: Tooltip Layer  -> "Tooltip"
-  Action: Show screen          -> "Main Menu"
+  Action: UIDirector → Setup layer "Main Menu" as Screen
+  Action: UIDirector → Setup layer "HUD" as Screen
+  Action: UIDirector → Setup layer "Pause Menu" as Screen
+  Action: UIDirector → Setup layer "Inventory" as Screen
+  Action: UIDirector → Setup layer "Confirm Dialog" as Popup
+  Action: UIDirector → Setup layer "Tooltip" as Tooltip
+  Action: UIDirector → Go to screen "Main Menu" (Push)
 ```
 
-That's it. UIDirector will hide all other layers and show `Main Menu`.
+That's it. UIDirector hides every other layer and shows `Main Menu`.
+
+> **`Setup layer` defaults:** Screens and Popups are modal (block other screens) by default; Tooltips are not. Need different defaults — non-modal screen, collision-synced layer? Use **Setup layer (advanced)** instead (see §10).
 
 ---
 
 ## 4. Plugin Properties
 
-Configure these in the Properties Bar when the UIDirector object is selected.
+Configure these in the Properties Bar when the UIDirector object is selected. They are grouped into **Transitions**, **Modal / Dim**, and **Behavior**.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| **UI Container Layer** | Text | `"UI"` | The name of the group layer that holds all your UI sublayers. Must match exactly (case-sensitive). |
-| **Default Anim Type** | Combo | `fade` | Animation used when no per-layer override is set. Options: `fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `none`, `scaleDown`, `scaleUp`. |
-| **Default Anim Duration** | Integer | `200` | How long transitions take in milliseconds. |
-| **Default Anim Easing** | Combo | `easeOut` | Easing curve. Options: `linear`, `easeIn`, `easeOut`, `easeInOut`, `quadraticOut`, `quarticOut`, `exponentialOut`, `circularOut`, `backOut`, `elasticOut`, `bounceOut`. |
-| **Persist Across Layouts** | Checkbox | Off | When enabled, the focus stack, registered layers, and all layer states survive a C3 layout change. Works best when the container layer is also marked **Global** in C3's layer properties - without that, the layer objects are recreated on the new layout and UIDirector must re-resolve them. |
-| **Debug Mode** | Checkbox | Off | Logs all state changes and animations to the browser console. Useful during development. |
-| **Dim Layer** | Text | `""` | Optional. The name of a layer inside the container to use as a dim/scrim overlay. UIDirector automatically shows this layer whenever a modal screen or popup is active, and hides it otherwise. Leave blank to disable. See §9 for setup tips. |
-| **Dim Opacity** | Percent | `0.5` | The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). The dim layer is always invisible when not needed regardless of this setting. |
+| **UI Container Layer** | Text | `"UI"` | The name of the group layer that holds all your UI sublayers (case-sensitive). Leave blank to search the whole layout. |
+| **Default Animation** | Combo | `fade` | Animation used when no per-layer override is set. Options: `fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `none`, `scaleDown`, `scaleUp`. |
+| **Default Duration (ms)** | Integer | `200` | How long transitions take in milliseconds. |
+| **Default Easing** | Combo | `easeOut` | Easing curve. Options: `linear`, `easeIn`, `easeOut`, `easeInOut`, `quadraticOut`, `quarticOut`, `exponentialOut`, `circularOut`, `backOut`, `elasticOut`, `bounceOut`. |
+| **Dim Layer** | Text | `""` | Optional. The name of a layer inside the container to use as a dim/scrim overlay. UIDirector automatically shows it whenever a modal screen or popup is active, and hides it otherwise. Leave blank to disable. See §9. |
+| **Dim Opacity** | Percent | `0.5` | The opacity of the dim layer when active (0 = invisible, 1 = fully opaque). |
+| **Persist Across Layouts** | Checkbox | Off | When enabled, the focus stack, registered layers, popups, and all layer states survive a C3 layout change. Works best with the container layer also marked **Global** in C3. |
+| **Debug Mode** | Checkbox | Off | Logs all state changes and animations to the browser console (F12). Useful during development. |
+
+> Combo properties arrive at runtime as 0-based indices; UIDirector maps them to string keys internally.
 
 ---
 
@@ -188,17 +193,17 @@ Configure these in the Properties Bar when the UIDirector object is selected.
 
 Every tracked layer has exactly one role, set at registration and never changed.
 
-### Normal
-A navigable screen. Participates in the navigation history. When active, it is moved to the top of the normal-layer Z-order. If **blocks other screens** is true (the default), all other normal layers are made non-interactive while this one is active.
+### Screen (role `normal`)
+A navigable screen. Participates in the navigation history (focus stack). When active, it is moved to the top of the normal-layer Z-order. If **modal** is on (the default for screens), all other screens are made non-interactive while this one is active and restored exactly when it closes.
 
-Use for: main menu, settings, inventory, pause menu, game over screen, character select.
+Use for: main menu, settings, inventory, pause menu, game over screen, character select, HUD (non-modal).
 
-### Popup
-An overlay that appears above all normal layers. Does **not** affect the focus stack - the player can still press Back and navigate normally while a popup is open. Multiple popups can be open simultaneously (they stack).
+### Popup (role `popup`)
+An overlay that appears above all screens. Does **not** affect the focus stack - the player can still press Back and navigate normally while a popup is open. Multiple popups can be open simultaneously (they stack).
 
-Use for: confirmation dialogs, error messages, achievement notifications, item tooltips that need interaction.
+Use for: confirmation dialogs, error messages, achievement notifications, toasts.
 
-### Tooltip
+### Tooltip (role `tooltip`)
 A display-only overlay always pinned to the very top of the Z-order. Only one tooltip can be active at a time - showing a new one auto-hides the previous one.
 
 Use for: hover hints, control reminders, item descriptions.
@@ -211,12 +216,12 @@ There is no separate role for HUDs, drawers, loading screens, or overlays. They 
 
 | UI concept | Role to use | How |
 |---|---|---|
-| HUD (always visible, never navigated to) | `normal`, `blocksOthers: false` | Track it, then `Set layer state: visible`. It stays visible regardless of what screen is focused. |
-| Loading screen | `normal` | Use `Replace current screen` after loading so it drops out of navigation history. |
-| Full-screen overlay / cutscene | `normal`, `blocksOthers: true` | Navigate to it. It blocks all other screens. Go back closes it and restores the previous state. |
-| Modal confirmation dialog | `popup` | Open popup / Close popup. It sits above screens and does not affect the back navigation. |
-| Toast / notification banner | `popup` | Use `Show popup for duration` for auto-dismiss. |
-| Hover hint | `tooltip` | Only one active at a time; swapping is automatic. |
+| HUD (always visible, never navigated to) | Screen, non-modal | `Setup layer (advanced)` with modal off, then `Set "HUD" to Visible`. It stays visible regardless of focus. |
+| Loading screen | Screen | Use `Go to screen … (Replace)` after loading so it drops out of navigation history. |
+| Full-screen overlay / cutscene | Screen, modal | `Go to screen … (Push)`. It blocks all other screens. `Go back` closes it and restores the previous state. |
+| Modal confirmation dialog | Popup | `Popup → Show` / `Popup → Hide`. It sits above screens and does not affect back-navigation. |
+| Toast / notification banner | Popup | `Popup → Show timed` for auto-dismiss. |
+| Hover hint | Tooltip | Only one active at a time; swapping is automatic. |
 
 ---
 
@@ -229,9 +234,9 @@ Every tracked layer is always in one of these states:
 | `hidden` | No | No | Default for all layers on registration. The layer doesn't render and ignores input. |
 | `visible` | Yes | Yes | The layer is shown and the player can interact with it. |
 | `disabled` | Yes | No | The layer renders (you can see it) but input is blocked. Good for greyed-out overlays. |
-| `focused` | Yes | Yes | Set automatically when a normal layer is at the top of the focus stack. |
+| `focused` | Yes | Yes | Set automatically when a screen is at the top of the focus stack. |
 
-Check the state of any layer at any time with `LayerState("layerName")`.
+Check the state of any layer at any time with `LayerState("layerName")`, or with the **Layer is in state** condition.
 
 ---
 
@@ -241,20 +246,30 @@ The focus stack is UIDirector's navigation history. It works like a browser's Ba
 
 ### How it works
 
-When you call **Navigate to screen** (or **Show Screen**):
-1. A snapshot of every tracked normal layer's interactive state is saved.
+When you call **Go to screen … (Push)**:
+1. A snapshot of every tracked screen's interactive state is saved.
 2. The target layer is moved to the top of the Z-order.
-3. If the layer is set to block other screens, all other normal layers are made non-interactive.
+3. If the layer is modal, all other screens are made non-interactive.
 4. The layer is put in the `focused` state.
 5. A stack frame `{ layerName, savedIndex, interactiveSnapshot }` is pushed.
-6. If the layer has a managed runtime timescale configured (via `Set layer timescale`), it is applied to `runtime.timeScale` now.
+6. If the layer has a managed runtime timescale configured (via `Set timescale`), it is applied to `runtime.timeScale` now.
 
-When you call **Return to previous screen** (or **Go Back**):
+When you call **Go back**:
 1. The top frame is popped.
 2. The layer at that frame is hidden (with a closing animation).
-3. The saved interactive snapshot is restored on all other normal layers.
+3. The saved interactive snapshot is restored on all other screens.
 4. The layer below in the stack is re-focused.
 5. If the closing layer had applied a managed runtime timescale, `runtime.timeScale` is restored to what it was before that layer opened.
+
+### Navigation modes (one action)
+
+The single **Go to screen** action covers three navigation modes via its combo parameter:
+
+| Mode | What it does |
+|---|---|
+| **Push (remember current)** | Standard navigation. Remembers the current screen so `Go back` returns to it. |
+| **Replace (don't remember)** | Swaps the current screen without adding it to history. The player cannot go back to it. |
+| **Return to (unwind to this screen)** | Pops the stack back to the named screen, closing everything above it in one step. |
 
 ### Multi-level navigation example
 
@@ -265,35 +280,31 @@ Stack (bottom to top):
   [ Controls  ] ← currently focused (top)
 ```
 
-Each `Go back` pops one level: Controls -> Settings -> Main Menu.
+Each `Go back` pops one level: Controls → Settings → Main Menu.
+`Go to screen "Settings" (Return to)` from Controls collapses straight to Settings.
+`Go to first screen` collapses straight to Main Menu (the root) no matter how deep you are.
 
 ---
 
 ## 8. Group Layers & Nested Screens
 
-UIDirector supports three layer configurations for organising your UI. Understanding each one - and when to choose it - prevents layout design mistakes that are difficult to fix later.
-
----
+UIDirector supports three layer configurations for organising your UI.
 
 ### The baseline - flat layers
 
-The simplest setup. Every tracked layer sits directly inside the container as a single flat layer with no sublayers. All UIDirector features work fully in this configuration.
+Every tracked layer sits directly inside the container as a single flat layer with no sublayers. All UIDirector features work fully in this configuration.
 
 ```
-[UI]                   ← container
-    [Tooltip]          ← tracked: tooltip
-    [Confirm Dialog]   ← tracked: popup
-    [Pause Menu]       ← tracked: normal screen
-    [Settings]         ← tracked: normal screen
-    [HUD]              ← tracked: normal screen (non-blocking)
-    [Main Menu]        ← tracked: normal screen
+[UI]
+    [Tooltip]          ← tracked: Tooltip
+    [Confirm Dialog]   ← tracked: Popup
+    [Pause Menu]       ← tracked: Screen
+    [Settings]         ← tracked: Screen
+    [HUD]              ← tracked: Screen (non-modal)
+    [Main Menu]        ← tracked: Screen
 ```
-
-Flat layers are the most predictable and easiest to reason about.
 
 > **Recommendation:** Start with flat layers. Only introduce group layers when you have a specific need they solve.
-
----
 
 ### Pattern 1 - Tracked group layer as one screen
 
@@ -305,16 +316,16 @@ A tracked layer is itself a C3 group layer. Its sublayers are internal visual st
         [Options - BG]      ← sublayer: background art
         [Options - Objects] ← sublayer: buttons, sliders
         [Options - Text]    ← sublayer: labels, headings
-    [Main Menu]             ← tracked: flat normal screen
+    [Main Menu]             ← tracked: flat screen
 ```
 
 Register the group layer only - the sublayers are never tracked individually:
 
 ```
 Event: On start of layout
-  Action: Setup: Screen Layer -> "Options"
-  Action: Setup: Screen Layer -> "Main Menu"
-  Action: Show screen -> "Main Menu"
+  Action: UIDirector → Setup layer "Options" as Screen
+  Action: UIDirector → Setup layer "Main Menu" as Screen
+  Action: UIDirector → Go to screen "Main Menu" (Push)
 ```
 
 **How UIDirector handles each feature on a group layer:**
@@ -322,127 +333,48 @@ Event: On start of layout
 | Feature | Behaviour |
 |---|---|
 | `visible` / `interactive` | Set on the group root; cascades automatically to all sublayers via C3's own layer system. |
-| Fade animation (opacity) | Applied to the group root; all sublayers fade together as a visual composite. |
-| Slide animation (scroll) | `scrollX`/`scrollY` does NOT cascade from a group root. UIDirector applies scroll to each direct sublayer individually, producing the same visual result. |
-| Collision management | Iterates all sublayers recursively. Only instances that had collisions enabled are disabled on hide; only those same instances are re-enabled on show. Instances intentionally set to collisions-off by the developer are never affected. |
+| Fade animation (opacity) | Applied to the group root; all sublayers fade together. |
+| Slide animation (scroll) | `scrollX`/`scrollY` does NOT cascade from a group root. UIDirector applies scroll to each direct sublayer individually for the same visual result. |
+| Collision management | Iterates all sublayers recursively. Only instances that had collisions enabled are disabled on hide; only those same instances are re-enabled on show. |
 | Z-order | The group moves as a unit. All sublayers move with it automatically. |
 
-**When to use Pattern 1:**
-
-- Your screen has distinct visual layers that always show and hide together: a background, an interactive content layer, and a text overlay.
-- You want objects on different sublayers to use different Z-sorting without turning each sublayer into a separately-managed screen.
-- You have many objects on one screen and want to split them across sublayers for rendering order, without that split affecting UIDirector's state management.
-
-**Recommendations:**
-
-- Keep sublayer depth to 2-4 layers per tracked group. Deeper nesting works but makes the C3 layer panel hard to navigate.
-- Name sublayers with a prefix matching the parent: `Options - BG`, `Options - Content`, `Options - Text`. This keeps the layer panel readable and makes the parent-child relationship clear at a glance.
-- Never track the internal sublayers of a Pattern 1 group individually. They are part of the screen, not separate screens.
-
-**What to avoid:**
-
-- Do not try to independently enable or disable one sublayer while the screen is open. `interactive` is set on the group root and cascades to all sublayers - you cannot selectively block input on part of the screen this way.
-- Avoid nesting sublayers more than 2 levels deep (sublayers of sublayers). UIDirector recurses through them correctly, but the layout panel becomes very difficult to manage.
-
----
+**When to use Pattern 1:** your screen has distinct visual layers that always show and hide together (background, content, text overlay), or you want objects on different sublayers to use different Z-sorting within one screen.
 
 ### Pattern 2 - Individually tracked layers inside an organising group
 
-An untracked group layer acts purely as a folder for organisation. The layers inside it are each tracked individually as independent screens.
+An untracked group layer acts purely as a folder. The layers inside it are each tracked individually as independent screens.
 
 ```
 [UI]
-    [Debug]                  ← tracked: normal (non-blocking, flat)
+    [Debug]                  ← tracked: Screen (non-modal, flat)
     [In Game]                ← NOT tracked (organising group only)
-        [Start Screen]       ← tracked: normal screen
-        [Playing HUD]        ← tracked: normal screen
-        [Finish Screen]      ← tracked: normal screen
-    [Touch Controls]         ← tracked: normal (non-blocking, flat)
+        [Start Screen]       ← tracked: Screen
+        [Playing HUD]        ← tracked: Screen
+        [Finish Screen]      ← tracked: Screen
+    [Touch Controls]         ← tracked: Screen (non-modal, flat)
 ```
 
 Register the individual layers - UIDirector finds them by searching recursively through the container:
 
 ```
 Event: On start of layout
-  Action: Setup: Screen Layer -> "Start Screen"
-  Action: Setup: Screen Layer -> "Playing HUD"
-  Action: Setup: Screen Layer -> "Finish Screen"
-  Action: Setup: Screen Layer -> "Debug"
-  Action: Setup: Screen Layer -> "Touch Controls"
-  Action: Show screen -> "Start Screen"
+  Action: UIDirector → Setup layer "Start Screen" as Screen
+  Action: UIDirector → Setup layer "Playing HUD" as Screen
+  Action: UIDirector → Setup layer "Finish Screen" as Screen
+  Action: UIDirector → Go to screen "Start Screen" (Push)
 ```
 
-**How Z-order works:**
-
-A sublayer cannot be moved independently of its parent group. When UIDirector needs to bring `Start Screen` to the front, it moves the parent group `In Game` to the top of the container instead. All siblings inside `In Game` come along for the move.
-
-This has one key implication: **all layers inside the same organising group share the same Z-position relative to the rest of the container.** If you need `Start Screen` to appear above `Debug` (which is a direct container child), that works - UIDirector moves `In Game` above `Debug`. But `Start Screen` and `Playing HUD` are siblings inside the same group; their Z-order relative to each other cannot be changed by moving the group. UIDirector only manages the Z-order of container-direct-children.
-
-When the focus stack is unwound, the parent group returns to its saved Z-position automatically.
-
-**When to use Pattern 2:**
-
-- You have 3 or more screens that belong to a logical phase or section: a start screen, a playing screen, and a results screen that together form the "in-game" UI.
-- You want to keep the container's direct-child list short and organised in larger projects.
-- Each screen in the group operates independently and is navigated to individually via `Navigate to screen`.
-
-**Recommendations:**
-
-- Use this pattern for phase-based UI: `In Game` containing `Start Screen`, `Playing HUD`, `Finish Screen`. The organising group keeps the layer panel clean without affecting runtime behaviour.
-- Keep organising groups at one level deep inside the container. Nesting organising groups inside other organising groups is supported but makes Z-order reasoning significantly harder to predict.
-- Name organising groups clearly so they cannot be confused with tracked screens. A simple convention helps: tracked screens use descriptive names (`Start Screen`, `Options Menu`); organising groups use section names (`In Game`, `Menus`, `Overlays`).
-- Do not expect UIDirector to independently control the Z-order of screens within the same organising group relative to each other. Only the group's position in the container is managed.
-
----
+**How Z-order works:** a sublayer cannot be moved independently of its parent group. When UIDirector needs to bring `Start Screen` to the front, it moves the parent group `In Game` to the top of the container. All siblings inside `In Game` come along. UIDirector only manages the Z-order of container-direct-children.
 
 ### Pattern 3 - Hybrid
 
-A combination of both patterns: some tracked screens are themselves group layers (Pattern 1), and they live inside untracked organising groups (Pattern 2).
-
-```
-[UI]
-    [Main Menu]                 ← tracked: flat normal screen
-    [In Game]                   ← NOT tracked (organising group)
-        [HUD]                   ← tracked: flat, non-blocking
-        [Options]               ← tracked: group layer screen (Pattern 1)
-            [Options - BG]
-            [Options - Content]
-        [Pause]                 ← tracked: group layer screen (Pattern 1)
-            [Pause - BG]
-            [Pause - Buttons]
-```
-
-UIDirector handles this correctly. When `Options` needs to come to the front, the container-direct-child `In Game` is moved. The internal sublayers (`Options - BG`, `Options - Content`) animate together using the per-sublayer scroll approach.
-
-**When to use Pattern 3:**
-
-- You have distinct game phases (Pattern 2) AND each phase contains screens complex enough to need internal visual sublayer structure (Pattern 1).
-- This is appropriate for mid-to-large projects where both levels of organisation are genuinely needed.
-
-> **Caution:** Only reach for Pattern 3 when you have clear reasons for both layers of structure. The added depth increases the cognitive load of maintaining the layout and makes the layer panel harder to read. Reach for it deliberately, not as a default.
-
----
-
-### Choosing the right pattern
-
-| Situation | Recommended approach |
-|---|---|
-| Small project, handful of screens | Flat layers only |
-| Screen needs separate BG, content, and overlay sublayers | Pattern 1 (tracked group layer) |
-| 3+ screens belong to one logical section or game phase | Pattern 2 (organising group, flat tracked children) |
-| Complex screens inside logical phases | Pattern 3 (hybrid) |
-
----
+Some tracked screens are themselves group layers (Pattern 1), living inside untracked organising groups (Pattern 2). UIDirector handles this correctly. Reach for it deliberately - the added depth increases maintenance load.
 
 ### General rules
 
-**Keep names unique across the entire container tree.** UIDirector searches the container recursively by name. If two layers at different depths share a name, only the first one found is returned. Layer names must be unique within the entire container.
-
-**Never track a layer and also track one of its sublayers.** Both would have conflicting state machines on the same layer objects. Only track the outermost group; its sublayers are unmanaged visual structure.
-
-**Organising groups (Pattern 2) should be clearly distinguishable from tracked layers.** Use consistent naming conventions to make it obvious at a glance which layers UIDirector manages and which are purely organisational folders.
-
-**Flat layers are always the safest choice.** Group layers add real organisational value but also add complexity. If a flat layer list is still manageable, stay flat.
+- **Keep names unique across the entire container tree.** UIDirector searches recursively by name; duplicate names at different depths return only the first match.
+- **Never track a layer and also track one of its sublayers.** Only track the outermost group.
+- **Flat layers are always the safest choice.** Use group layers only when they add real organisational value.
 
 ---
 
@@ -450,15 +382,15 @@ UIDirector handles this correctly. When `Options` needs to come to the front, th
 
 ### Default animations
 
-Set the **Default Anim Type**, **Duration**, and **Easing** in the plugin properties. These apply to all layers unless overridden.
+Set the **Default Animation**, **Default Duration**, and **Default Easing** in the plugin properties. These apply to all layers unless overridden.
 
 ### Per-layer animation override
 
-Use **Set Layer Animation** to give a specific layer its own animation style:
+Use **Set animation** to give a specific layer its own animation style:
 
 ```
 Event: On start of layout
-  Action: Set layer animation -> "Settings", Type: slideLeft, Duration: 400, Easing: easeInOut
+  Action: UIDirector → Set "Settings" animation slideLeft, 400 ms, easeInOut, mirror on back false
 ```
 
 This overrides the plugin defaults only for the `Settings` layer.
@@ -467,172 +399,132 @@ This overrides the plugin defaults only for the `Settings` layer.
 
 | Type | Open | Close |
 |---|---|---|
-| `fade` | Opacity 0 -> 1 | Opacity 1 -> 0 |
+| `fade` | Opacity 0 → 1 | Opacity 1 → 0 |
 | `slideLeft` | Slides in from the left | Slides out to the left |
 | `slideRight` | Slides in from the right | Slides out to the right |
 | `slideUp` | Slides up into view | Slides up and out |
 | `slideDown` | Slides down into view | Slides down and out |
-| `scaleDown` | Starts large and scales to 1 | Scales down toward 0.2 |
-| `scaleUp` | Starts small and scales to 1 | Scales up toward 2 |
+| `scaleDown` | Starts large (2×) and scales to 1× | Scales down toward 0.2× |
+| `scaleUp` | Starts small (0.2×) and scales to 1× | Scales up toward 2× |
 | `none` | Instant | Instant |
 
 Slide animations use an off-screen buffer so layers begin and end fully outside view, including on wide layouts.
 
-For scale animations, opacity is animated separately with a fixed short curve for readability:
-- Opacity duration: `300ms`
-- Opacity easing: `quarticOut`
-- Scale easing and duration still follow your chosen animation easing and duration
-
-### Easing options
-
-You can use these easing curves in plugin defaults and per-layer overrides:
-
-`linear`, `easeIn`, `easeOut`, `easeInOut`, `quadraticOut`, `quarticOut`, `exponentialOut`, `circularOut`, `backOut`, `elasticOut`, `bounceOut`.
+For scale animations, opacity is animated separately with a fixed short curve for readability (300 ms, `quarticOut`), while scale follows your chosen easing and duration.
 
 ### Driving custom effects with animation progress
 
-While a layer is animating, `LayerAnimProgress("layerName")` returns a value from `0` (start) to `1` (complete). Use this to sync custom effects:
+While a layer is animating, `LayerAnimProgress("layerName")` returns `0` (start) to `1` (complete), and `LayerAnimDirection("layerName")` returns `"opening"` / `"closing"` / `""`. Use these to sync custom effects:
 
 ```
 Event: Every tick
-  Condition: Layer "Pause Menu" is animating
-  Action: Set overlay opacity -> LayerAnimProgress("Pause Menu")
+  Condition: UIDirector → Layer "Pause Menu" is animating
+    Action: Set overlay opacity → UIDirector.LayerAnimProgress("Pause Menu") × 100
 ```
 
 ### Direction-aware close animation (mirror)
 
-By default a layer uses the same animation direction for both opening and closing. For slide animations this means the screen exits the same side it entered from: if it slides in from the left, it slides back to the left.
-
-Set **Mirror close direction** to `true` in **Set layer animation** to reverse the exit direction. A screen that slides in from the left will then slide out to the right when the player goes back. This feels more natural for left-to-right navigation flows.
+By default a layer uses the same animation direction for opening and closing, so a slide-in-from-left exits back to the left. Set **mirror on back** to `true` in **Set animation** to reverse the exit direction: a screen that slides in from the left then slides out to the right when the player goes back.
 
 ```
 Event: On start of layout (after tracking)
-  Action: Set layer animation -> "Settings", slideLeft, 350ms, easeOut, mirror close: true
-  // Opens: slides in from left
-  // Closes (on Go Back): slides out to right
+  Action: UIDirector → Set "Settings" animation slideLeft, 350 ms, easeOut, mirror on back true
+  // Opens: slides in from left.  Closes (on Go back): slides out to right.
 ```
 
-Mirror only applies when **Return to previous screen** is used (i.e., the player goes Back). Navigating forward always uses the standard opening animation. Fade and none animations are unaffected.
-
-Mirror also works with scale animations:
-- `scaleDown` mirrored on back becomes `scaleUp`
-- `scaleUp` mirrored on back becomes `scaleDown`
+Mirror only applies when **Go back** is used. Navigating forward always uses the standard opening animation. Fade and none are unaffected. Scale mirrors too: `scaleDown`↔`scaleUp`.
 
 ### Dim layer (scrim overlay)
 
-Set the **Dim Layer** property to the name of a layer inside the container. UIDirector will automatically show that layer at the configured **Dim Opacity** whenever:
-- A modal screen is focused (blocks other screens), **or**
-- Any popup is open
-
-The dim layer hides itself automatically when neither condition is true.
+Set the **Dim Layer** property to the name of a layer inside the container. UIDirector automatically shows it at the configured **Dim Opacity** whenever a modal screen is focused **or** any popup is open, and hides it otherwise.
 
 **Recommended setup:**
-1. Create a layer inside your container (e.g. `!UI > Dim`). Add a filled rectangle sprite covering the full layout, coloured black with no outline.
+1. Create a layer inside your container (e.g. `!UI > Dim`). Add a black full-layout rectangle.
 2. Set **Dim Layer** in UIDirector properties to `"Dim"`.
-3. Set **Dim Opacity** to the desired intensity (e.g. `0.5` for a 50% scrim).
-4. UIDirector manages visibility and opacity on this layer - do not track it.
+3. Set **Dim Opacity** (e.g. `0.5`).
+4. Place the Dim layer above screens but below popups so it covers screens, not popups.
+5. UIDirector manages visibility and opacity on this layer - **do not track it.**
 
-### Skipping animations
+### Finishing animations early
 
 ```
-Action: Finish animation instantly -> "Settings"   // snap one layer to its end state
-Action: Skip all animations                       // snap ALL animating layers instantly
+Action: UIDirector → Finish animation on "Settings"   // snap one layer to its end state
+Action: UIDirector → Finish animation on ""            // blank name = snap ALL animating layers
 ```
+
+`Finish animation` also completes any per-object transition behaviors on the layer (see §19).
 
 ---
 
 ## 10. Actions Reference
 
-### Common (beginner-friendly)
+Actions are grouped into five categories: **Setup**, **Navigation**, **Layers**, **Popups & Tooltips**, and **Transitions & Events**.
 
-| Action | Description |
-|---|---|
-| **Setup: Screen Layer** `name` | Register a layer as a normal navigable screen. Call once at layout start. |
-| **Setup: Popup Layer** `name` | Register a layer as a popup overlay. |
-| **Setup: Tooltip Layer** `name` | Register a layer as a tooltip (display-only, always on top). |
-| **Show screen** `name` | Navigate to a screen, pushing it on the focus stack. |
-| **Go back** | Close the current screen and return to the previous one (like a Back button). |
-| **Open popup** `name` | Show a popup overlay above the current screen. |
-| **Close popup** `name` | Hide a specific popup. |
-| **Show tooltip** `name` | Show a tooltip (hides any previously active tooltip). |
-| **Hide tooltip** | Hide the currently active tooltip. |
+### Setup
 
-### Tracking
+| Action (listName) | Event-sheet text | Description |
+|---|---|---|
+| **Setup layer** | `Setup {layer} as {role}` | Register a layer as a `Screen`, `Popup`, or `Tooltip` with sensible defaults (Screen/Popup modal, Tooltip not). |
+| **Setup layer (advanced)** | `Setup {layer} as {role}, modal {modal}, sync collisions {sync}` | Full-control registration: choose role, modal blocking, and collision syncing explicitly. |
+| **Untrack** | `Untrack {layer}` | Stop managing a layer. Leave the name **blank** to untrack everything and clear all stacks. |
 
-| Action | Description |
-|---|---|
-| **Track layer** `name, role, blocksOthers, syncCollisions` | Full registration with all options. Role: `normal`/`popup`/`tooltip`. `blocksOthers`: when active, disable all other normal layers. `syncCollisions`: mirror `collisionsEnabled` with the interactive state. |
-| **Untrack layer** `name` | Remove a layer from UIDirector's control. It is immediately hidden. |
-| **Untrack all layers** | Remove all layers from tracking. |
+### Navigation
 
-### Layer State
+| Action (listName) | Event-sheet text | Description |
+|---|---|---|
+| **Go to screen** | `Go to screen {layer} ({mode})` | Navigate to a screen. Mode: `Push` (remember current), `Replace` (don't remember), `Return to` (unwind to this screen). |
+| **Go to screen with data** | `Go to screen {layer}, set {key} = {value}` | Store a key/value on the screen, then Push to it. Read back with `LayerData()`. |
+| **Go back** | `Go back to the previous screen` | Pop the focus stack with animation. No-op if empty. Drives a Back button. |
+| **Go to first screen** | `Reset to the first screen` | Clear the stack and return to the root (first) screen, no matter how deep. |
 
-| Action | Description |
-|---|---|
-| **Set layer state** `name, state` | Directly set a layer's state: `visible`, `hidden`, `disabled`. |
-| **Set layer blocks other screens** `name, enabled` | Change whether a screen blocks all other screens when it becomes active. |
-| **Set layer animation** `name, type, duration, easing, mirror` | Override the animation for a specific layer. The optional `mirror` boolean reverses the close direction when going Back (slide and scale animations). |
-| **Sync collisions to layer state** `name, enabled` | Toggle automatic collision syncing for a layer. When the layer is hidden or non-interactive, UIDirector disables collisions on instances that had them enabled. On restore, only those instances are re-enabled — instances that were already collisions-off are never touched. |
-| **Set layer input enabled** `name, enabled` | Manually override a layer's input on/off. UIDirector will not override this until the next state change. |
-| **Set layer data** `name, key, value` | Store an arbitrary string value on a layer, retrievable with `LayerData()`. |
-| **Set layer timescale** `name, instanceTimescale, runtimeTimescale` | Overrides `instance.timeScale` on every instance in the layer and sublayers right now (`instanceTimescale`, use -1 to skip). Optionally stores a global runtime timescale to auto-apply when the layer opens and auto-restore on close (`runtimeTimescale`, use -1 to clear). See §17. |
-| **Reset layer timescale** `name` | Restores all instance timescales to follow the global timescale and clears any managed runtime timescale override. |
+### Layers
 
-### Focus Stack
+| Action (listName) | Event-sheet text | Description |
+|---|---|---|
+| **Set layer state** | `Set {layer} to {state}` | Direct state change with the layer's animation. State: `Visible`, `Hidden`, `Disabled`. |
+| **Set input enabled** | `Set {layer} input enabled: {enabled}` | Toggle `isInteractive` without changing visuals (a one-shot override). |
+| **Set animation** | `Set {layer} animation {type}, {ms} ms, {easing}, mirror on back {mirror}` | Per-layer animation override. |
+| **Set modal** | `Set {layer} blocks other screens: {modal}` | Whether this screen blocks input on all other screens while active. |
+| **Set timescale** | `Set {layer} timescale: objects {obj}, game-while-open {game}` | Per-object timescale now (`-1` = skip) and a global runtime timescale auto-applied on open / restored on close (`-1` = off). Pass `1` / `1` to clear. See §17. |
+| **Set data** | `Set {layer} data {key} = {value}` | Store an arbitrary string on a layer, read with `LayerData()`. |
+| **Sync collisions** | `Set {layer} collision sync: {enabled}` | Toggle automatic collision syncing. When on, instances that had collisions enabled are disabled while the layer is hidden/disabled and restored on show. |
 
-| Action | Description |
-|---|---|
-| **Navigate to screen** `name` | Open a screen and make it the active one (same as Show Screen but in the full API). |
-| **Navigate to screen with data** `name, key, value` | Set a data value on a screen and open it in one action. Shortcut for Set Layer Data + Navigate to screen. |
-| **Replace current screen** `name` | Switch to a new screen without adding the current one to history. The player cannot go back to it. |
-| **Return to previous screen** | Close the current screen and restore the previous one. |
-| **Return to screen** `name` | Close screens one by one until the specified screen is active. Skips intermediate screens. |
-| **Go back to first screen** | Instantly close every screen above the first one and return to it. Use for a Home button that always returns to the main menu no matter how deep the player has navigated. |
+### Popups & Tooltips
 
-### Popups
+| Action (listName) | Event-sheet text | Description |
+|---|---|---|
+| **Popup** | `{mode} popup {layer} (for {ms} ms)` | One action, four modes: `Show`, `Hide`, `Show timed` (auto-dismiss after `ms`), `Hide all`. Duration is used only by `Show timed`. |
+| **Tooltip** | `{mode} tooltip {layer}` | One action, three modes: `Show`, `Hide`, `Hide active` (hide whichever tooltip is up; layer name ignored). |
 
-| Action | Description |
-|---|---|
-| **Show popup** `name` | Show a popup-role layer. |
-| **Show popup for duration** `name, ms` | Show a popup and auto-close it after the given number of milliseconds. Calling Hide popup early cancels the timer. |
-| **Hide popup** `name` | Hide a specific popup-role layer. |
-| **Close all popups** | Hide every open popup at once. Use when switching scenes or showing a critical error that should clear all open dialogs first. |
+### Transitions & Events
 
-### Tooltips
-
-| Action | Description |
-|---|---|
-| **Show tooltip** `name` | Show a tooltip-role layer (auto-hides any active tooltip). |
-| **Hide tooltip** `name` | Hide a specific tooltip-role layer. |
-| **Hide active tooltip** | Hide whichever tooltip is currently active. |
-
-### Transitions
-
-| Action | Description |
-|---|---|
-| **Finish animation instantly** `name` | Immediately snap a layer's animation to its end state. |
-| **Skip all animations** | Immediately snap all currently-animating layers to their end states. |
+| Action (listName) | Event-sheet text | Description |
+|---|---|---|
+| **Finish animation** | `Finish animation on {layer}` | Instantly complete a layer's running transition (and any per-object animations). Blank name = finish **all** running animations. |
 
 ---
 
 ## 11. Conditions Reference
 
-| Condition | Description |
-|---|---|
-| **Layer is tracked** `name` | True if the layer has been registered with UIDirector. |
-| **Layer is in state** `name, state` | True if the layer is currently in the given state. |
-| **Layer is visible** `name` | True if the layer is visible AND all of its parent group layers are also visible. Returns false if the layer's own `visible` flag is true but a parent group is hidden. |
-| **Layer accepts input** `name` | True if `layer.interactive` is currently true. |
-| **Layer blocks other screens** `name` | True if the layer is configured to block all other screens when active. |
-| **Layer syncs collisions** `name` | True if collision syncing is enabled for the layer. |
-| **Layer is animating** `name` | True while the layer is in the middle of an open/close transition. |
-| **Layer is fully open** `name` | True when a layer is fully open and its transition animation has finished. Use to only allow button clicks once a screen has completely slid or faded in. |
-| **Screen is the active screen** `name` | True if the named screen is currently the topmost active screen. |
-| **Screen is in navigation history** `name` | True if the named screen appears anywhere in the focus stack, not just at the top. Useful for disabling nav buttons that would create duplicates. |
-| **No screens are open** | True when no screens are currently active (nothing has been navigated to). |
-| **Any popup visible** | True when at least one popup-role layer is currently visible. |
-| **Tooltip is visible** `name` | True when the specified tooltip is the active tooltip. |
-| **Can go back** | True when there is a previous screen to return to. |
+These are **state-check** conditions (invertible, polled). Triggers are listed separately in §13.
+
+| Condition | Parameters | Description |
+|---|---|---|
+| **Can go back** | — | True when there is a previous screen to return to. Use to show/hide a Back button. |
+| **No screens are open** | — | True when the focus stack is empty. |
+| **Screen is the active screen** | layer | True when that screen is on top of the stack. |
+| **Screen is in navigation history** | layer | True when that screen appears anywhere in the stack. |
+| **Layer is in state** | layer, state | True when the layer's state matches (`Visible`/`Hidden`/`Disabled`/`Focused`). |
+| **Layer is visible** | layer | True when the layer **and all its parents** are visible. |
+| **Layer is ready** | layer | True when the layer is visible/focused **and** not mid-animation. Gate button clicks on this. |
+| **Layer accepts input** | layer | True when the layer's `isInteractive` is on. |
+| **Layer is animating** | layer | True during a show/hide animation. |
+| **Layer blocks other screens** | layer | True when the layer is modal. |
+| **Layer is tracked** | layer | True when the layer is registered. Guard before referencing a layer. |
+| **Any popup is visible** | — | True when one or more popups are open. |
+| **A tooltip is visible** | — | True when a tooltip is active. |
+
+> **Renamed in v1.2.0.0:** `Layer is fully open` is now **Layer is ready**.
 
 ---
 
@@ -640,231 +532,286 @@ Action: Skip all animations                       // snap ALL animating layers i
 
 | Expression | Returns | Description |
 |---|---|---|
-| `LayerState("name")` | string | Current state of a layer: `"visible"`, `"hidden"`, `"disabled"`, `"focused"`, or `""`. |
-| `PreviousLayerState("name")` | string | State the layer was in before its most recent transition. |
-| `LayerRole("name")` | string | Role of a tracked layer: `"normal"`, `"popup"`, `"tooltip"`, or `""`. |
-| `LayerData("name", "key")` | string | Custom data stored on a layer with Set Layer Data. |
-| `FocusedLayer()` | string | The name of the layer currently at the top of the focus stack. `""` if none. |
-| `PreviousScreen()` | string | The name of the screen just below the current one in the focus stack (where Go Back leads). `""` if none. |
-| `ScreenAtDepth(n)` | string | The screen at position `n` in the focus stack. Depth 1 is the first screen opened; `FocusStackDepth()` is the current top. `""` if out of range. |
-| `FocusStackDepth()` | number | How many layers are on the focus stack. `0` = nothing focused. |
-| `CurrentScreen()` | string | Alias for `FocusedLayer()`. Beginner-friendly name. |
-| `TopPopup()` | string | Name of the most recently opened popup. `""` if no popups are visible. |
-| `ActiveTooltip()` | string | Name of the currently visible tooltip. `""` if none. |
-| `LastChangedLayer()` | string | Name of the layer whose state most recently changed. Use inside trigger events. |
-| `LastChangedState()` | string | The new state the most recently changed layer transitioned to. Use inside trigger events. |
-| `LayerAnimProgress("name")` | number | Animation progress from `0` (start) to `1` (complete). |
-| `LayerAnimDirection("name")` | string | `"opening"`, `"closing"`, or `""` when not animating. |
-| `CountTrackedLayers()` | number | Total number of layers currently registered with UIDirector. Use with `GetTrackedLayerByIndex` in a `Repeat` loop to iterate all tracked layers. |
-| `GetTrackedLayerByIndex(n)` | string | Name of the tracked layer at zero-based index `n`. Returns `""` if out of range. Use inside a `Repeat CountTrackedLayers() times` loop with `loopindex` to enumerate all tracked layers. |
+| `CurrentScreen()` | string | Active screen name, or `""`. |
+| `FocusedLayer()` | string | Active screen name, or `""`. Alias of `CurrentScreen()`; polled by companion addons. |
+| `PreviousScreen()` | string | Screen directly below the active one (where Go back leads), or `""`. |
+| `FocusStackDepth()` | number | Screens currently in the stack. `0` = none. |
+| `LayerState("name")` | string | `"visible"` / `"hidden"` / `"disabled"` / `"focused"` / `""`. |
+| `PreviousLayerState("name")` | string | The layer's prior state. |
+| `LayerRole("name")` | string | `"normal"` / `"popup"` / `"tooltip"` / `""`. |
+| `LayerData("name", "key")` | string | Stored custom value, or `""`. |
+| `TopPopup()` | string | Topmost open popup, or `""`. |
+| `ActiveTooltip()` | string | Active tooltip, or `""`. |
+| `CountTrackedLayers()` | number | Total registered layers. Use with `GetTrackedLayerByIndex` in a `Repeat` loop. |
+| `GetTrackedLayerByIndex(i)` | string | Tracked layer name at zero-based index `i`, or `""`. |
+| `LayerAnimProgress("name")` | number | 0–1 animation progress; `0` if idle. |
+| `LayerAnimDirection("name")` | string | `"opening"` / `"closing"` / `""`. |
+| `LastChangedLayer()` | string | Layer whose state most recently changed. Use inside triggers; polled by companion addons. |
+| `LastChangedState()` | string | New state of that layer. Use inside triggers. |
+
+> **Removed in v1.2.0.0:** `ScreenAtDepth(n)`. For a "Back to X" label use `PreviousScreen()`; for a depth indicator use `FocusStackDepth()`.
 
 ---
 
 ## 13. Triggers Reference
 
-Triggers fire in response to state changes. They do not filter by layer unless you add a parameter.
+Triggers fire in response to state changes. A trigger with a layer-name parameter only fires for the matching layer.
 
-| Trigger | Description |
-|---|---|
-| **On layer state changed** `name` | Fires when the specified layer changes state. |
-| **On any layer state changed** | Fires when any tracked layer changes state. Read `LastChangedLayer()` and `LastChangedState()` to identify which. |
-| **On layer fully opened** `name` | Fires when the specified layer finishes opening and is now the active screen. |
-| **On layer fully closed** `name` | Fires when the specified layer finishes closing and is no longer active. |
-| **On layer opening** `name` | Fires when a layer's opening animation begins. |
-| **On layer closing** `name` | Fires when a layer's closing animation begins. |
-| **On layer transition complete** `name` | Fires when a layer finishes its open or close animation. |
-| **On screen shown** `name` | Common API alias for On layer fully opened. |
-| **On screen hidden** `name` | Common API alias for On layer fully closed. |
-| **On popup opened** `name` | Fires when a popup-role layer becomes visible. |
-| **On popup closed** `name` | Fires when a popup-role layer is hidden. |
+| Trigger | Parameter | Fires when… / expressions to use inside |
+|---|---|---|
+| **On screen shown** | layer | A screen became the active screen. Use `FocusedLayer()`, `PreviousScreen()`. |
+| **On screen hidden** | layer | A screen left the focus stack. Use `PreviousScreen()`. |
+| **On popup opened** | layer | A popup became visible. Use `TopPopup()`. |
+| **On popup closed** | layer | A popup hid. |
+| **On layer opening** | layer | An opening animation started. Use `LayerAnimProgress()`, `LayerAnimDirection()`. |
+| **On layer opened** | layer | An opening animation finished. Safe point to enable controls or start effects. |
+| **On layer closing** | layer | A closing animation started. |
+| **On layer closed** | layer | A closing animation finished. Safe point to clean up. |
+| **On layer state changed** | layer | That specific layer's state changed. Use `LayerState()`, `PreviousLayerState()`. |
+| **On any layer state changed** | — | Any layer's state changed. Use `LastChangedLayer()`, `LastChangedState()`. |
+
+> **Renamed/removed in v1.2.0.0:** `On layer fully opened` → **On layer opened**, `On layer fully closed` → **On layer closed**. The old `On layer transition complete` is gone — use **On layer opened** / **On layer closed**. (`On screen shown` / `On screen hidden` are now first-class navigation triggers, not aliases.)
 
 ---
 
 ## 14. System Use Cases
 
-This section isolates each core UIDirector system so you can learn one subsystem at a time before combining them.
+This section isolates each core UIDirector subsystem so you can learn one at a time before combining them. Every example uses the v1.2.0.0 action surface.
 
 ### Registration System
 
 Tracks layers and assigns a role plus behavior flags.
 
-#### Use Case A - One-time setup with role assignment
-
-**Scenario:** Register your full UI at layout start using beginner actions.
+#### A - One-time setup with role assignment
 
 ```text
 Event: On start of layout
-  Action: Setup: Screen Layer -> "Main Menu"
-  Action: Setup: Screen Layer -> "Settings"
-  Action: Setup: Popup Layer -> "Confirm Dialog"
-  Action: Setup: Tooltip Layer -> "Tooltip"
+  Action: UIDirector → Setup layer "Main Menu" as Screen
+  Action: UIDirector → Setup layer "Settings" as Screen
+  Action: UIDirector → Setup layer "Confirm Dialog" as Popup
+  Action: UIDirector → Setup layer "Tooltip" as Tooltip
 ```
 
-#### Use Case B - Full control setup with Track layer
-
-**Scenario:** Register with explicit role, modal behavior, and collision syncing.
+#### B - Full-control setup with Setup layer (advanced)
 
 ```text
 Event: On start of layout
-  Action: Track layer -> "HUD", "normal", false, true
-  Action: Track layer -> "Pause Menu", "normal", true, false
+  Action: UIDirector → Setup layer "HUD" as Screen, modal false, sync collisions true
+  Action: UIDirector → Setup layer "Pause Menu" as Screen, modal true, sync collisions false
 ```
 
-Tip: Register once before any show/hide/navigation actions. Calling navigation before tracking silently does nothing.
+> **Tip:** Register once, before any navigation/popup action. Calling navigation before tracking silently does nothing (or logs in Debug Mode).
+
+#### C - Untrack one layer or everything
+
+```text
+Event: On "Reset UI" clicked
+  Action: UIDirector → Untrack "Tooltip"      // remove one layer
+  Action: UIDirector → Untrack ""             // blank = untrack all + clear every stack
+```
 
 ### Layer State System
 
 Controls visible/interactive state and optional collision syncing.
 
-#### Use Case A - Keep HUD visible outside stack
-
-**Scenario:** Keep a non-modal HUD visible while screen navigation still works.
+#### A - Keep a HUD visible outside the stack
 
 ```text
 Event: On start of layout
-  Action: Track layer -> "HUD", "normal", false, false
-  Action: Set layer state -> "HUD", "visible"
+  Action: UIDirector → Setup layer "HUD" as Screen, modal false, sync collisions false
+  Action: UIDirector → Set "HUD" to Visible
 ```
 
-#### Use Case B - Collision-safe disabling
+#### B - Greyed-out (disabled) panel
 
-**Scenario:** Disable collision checks for only the instances UIDirector turned off.
+```text
+Event: On "Loading started"
+  Action: UIDirector → Set "Inventory" to Disabled   // visible but input blocked
+
+Event: On "Loading finished"
+  Action: UIDirector → Set "Inventory" to Visible
+```
+
+#### C - One-shot input gate during a cutscene
+
+```text
+Event: On cutscene start
+  Action: UIDirector → Set "HUD" input enabled: false   // visuals unchanged, input off
+
+Event: On cutscene end
+  Action: UIDirector → Set "HUD" input enabled: true
+```
+
+#### D - Collision-safe disabling
 
 ```text
 Event: On start of layout
-  Action: Track layer -> "HUD", "normal", false, true
+  Action: UIDirector → Setup layer "HUD" as Screen, modal false, sync collisions true
 
-Event: Show screen -> "Pause Menu"
-  // HUD collisions disable only on instances that were enabled.
+Event: On "Pause" clicked
+  Action: UIDirector → Go to screen "Pause Menu" (Push)
+  // HUD collisions disable only on instances that were enabled, then restore on resume.
 ```
 
 ### Navigation System (Focus Stack)
 
-Maintains screen history and exact restoration on back navigation.
+Maintains screen history and exact restoration on back-navigation.
 
-#### Use Case A - Forward/back flow
-
-**Scenario:** Move from menu to settings and back.
+#### A - Forward / back flow
 
 ```text
-Event: Button "Settings" clicked
-  Action: Navigate to screen -> "Settings"
+Event: Button "Settings" → On clicked
+  Action: UIDirector → Go to screen "Settings" (Push)
 
-Event: Button "Back" clicked
-  Action: Return to previous screen
+Event: Button "Back" → On clicked
+  Action: UIDirector → Go back
 ```
 
-#### Use Case B - Collapse stack to a target
-
-**Scenario:** Return from deep navigation to a known screen in one action.
+#### B - Collapse the stack to a target
 
 ```text
 Event: Button "Home" clicked
-  Action: Return to screen -> "Main Menu"
+  Action: UIDirector → Go to screen "Main Menu" (Return to)   // unwind to Main Menu
 ```
 
-### Popup and Tooltip System
+#### C - Replace without history (loading → menu)
 
-Handles temporary overlays that do not participate in focus history.
+```text
+Event: Loading complete
+  Action: UIDirector → Go to screen "Main Menu" (Replace)     // Loading drops out of history
+```
 
-#### Use Case A - Auto-dismiss popup
+#### D - Pop straight to the root
 
-**Scenario:** Show feedback for two seconds after save.
+```text
+Event: Button "Quit to title" clicked
+  Action: UIDirector → Go to first screen
+```
+
+#### E - Show/hide a Back button automatically
+
+`Can go back` is a condition (use it to gate an action), not a readable expression:
+
+```text
+Event: UIDirector → Can go back
+  Action: Set Button "Back" visible → true
+Event: UIDirector → [X] Can go back   (condition inverted)
+  Action: Set Button "Back" visible → false
+```
+
+### Popup & Tooltip System
+
+Temporary overlays that do not participate in focus history.
+
+#### A - Modal confirmation popup
+
+```text
+Event: Button "Delete Save" clicked
+  Action: UIDirector → Popup: Show "Confirm Dialog"
+
+Event: Button "Yes" (in dialog) clicked
+  Action: UIDirector → Popup: Hide "Confirm Dialog"
+  Action: Delete save file
+```
+
+#### B - Auto-dismiss toast
 
 ```text
 Event: Save complete
-  Action: Show popup for duration -> "Toast", 2000
+  Action: UIDirector → Popup: Show timed "Toast" for 2000 ms
+  // Calling Popup: Hide "Toast" early cancels the timer.
 ```
 
-#### Use Case B - Single-active tooltip behavior
+#### C - Clear every popup at once
 
-**Scenario:** Show tooltip for hovered item and replace current tooltip automatically.
+```text
+Event: Before returning to menu
+  Action: UIDirector → Popup: Hide all
+```
+
+#### D - Single-active tooltip behaviour
 
 ```text
 Event: Mouse over Item A
-  Action: Show tooltip -> "Item Tooltip"
+  Action: UIDirector → Tooltip: Show "Item Tooltip"
 
 Event: Mouse over Item B
-  Action: Show tooltip -> "Item Tooltip"
-```
+  Action: UIDirector → Tooltip: Show "Item Tooltip"   // auto-hides the previous one
 
-Tip: Tooltips are display overlays. They are shown non-interactive by design.
+Event: Mouse not over any item
+  Action: UIDirector → Tooltip: Hide active
+```
 
 ### Transition System
 
-Applies animated open/close transitions with state-safe interaction lockout.
+Animated open/close transitions with state-safe interaction lockout.
 
-#### Use Case A - Per-layer override
-
-**Scenario:** Give Settings a longer elastic opening than defaults.
+#### A - Per-layer override
 
 ```text
 Event: On start of layout
-  Action: Set layer animation -> "Settings", "slideLeft", 450, "elasticOut", true
+  Action: UIDirector → Set "Settings" animation slideLeft, 450 ms, elasticOut, mirror on back true
 ```
 
-#### Use Case B - Emergency snap
+#### B - Gate logic until fully open
 
-**Scenario:** Skip every active transition before layout change.
+```text
+Trigger: UIDirector → On layer opened "Checkout"
+  Action: Set SubmitButton enabled → true
+```
+
+#### C - Emergency snap before a layout change
 
 ```text
 Event: Before layout switch
-  Action: Skip all animations
-  Action: Go to layout -> "Game"
+  Action: UIDirector → Finish animation on ""   // blank = all
+  Action: Go to layout "Game"
 ```
 
-### Persistence and Save/Load System
+### Persistence & Save/Load System
 
-Persists tracked layer metadata, stack, and active overlays across layout changes.
-
-#### Use Case A - Persistent global UI
-
-**Scenario:** Keep HUD and stack state between layouts.
+Persists tracked layer metadata, the stack, and active overlays across layout changes.
 
 ```text
 Event: On start of layout
-  Condition: globalValue("UIInited") = 0
-    Action: Setup: Screen Layer -> "HUD"
-    Action: Setup: Screen Layer -> "Inventory"
-    Action: Set globalValue("UIInited") -> 1
+  Condition: Global "UIInited" = 0
+    Action: UIDirector → Setup layer "HUD" as Screen, modal false, sync collisions false
+    Action: UIDirector → Setup layer "Inventory" as Screen
+    Action: Set Global "UIInited" → 1
+  // With Persist Across Layouts on + the container marked Global, state restores automatically.
 ```
-
-Tip: Pair UIDirector Persist Across Layouts with C3 Global layers for seamless transitions.
 
 ### Timescale System
 
-Supports both instance-level timescale changes and managed global runtime timescale.
+Per-instance timescale changes and managed global runtime timescale (see §17).
 
-#### Use Case A - Freeze gameplay while menu animates
-
-**Scenario:** Pause menu opens, world freezes, menu still animates.
+#### A - Freeze gameplay while the menu animates
 
 ```text
 Event: On start of layout
-  Action: Set layer timescale -> "Pause Menu", 1, 0
+  Action: UIDirector → Set "Pause Menu" timescale: objects 1, game-while-open 0
 
 Event: Button "Pause" clicked
-  Action: Navigate to screen -> "Pause Menu"
+  Action: UIDirector → Go to screen "Pause Menu" (Push)
+  // runtime.timeScale → 0 (game frozen); Pause Menu instances keep animating (objects = 1).
 ```
 
-#### Use Case B - Restore defaults
-
-**Scenario:** Remove all timescale overrides from a screen.
+#### B - Clear all timescale overrides on a layer
 
 ```text
-Event: On reset options clicked
-  Action: Reset layer timescale -> "Pause Menu"
+Event: On "Reset options" clicked
+  Action: UIDirector → Set "Pause Menu" timescale: objects 1, game-while-open 1
+  // objects 1 = normal speed now; game-while-open 1 = no global override on open.
 ```
-
-## 15. Game Use Cases
 
 ---
 
+## 15. Game Use Cases
+
 ### Use Case 1 - Main Menu Navigation
 
-**Scenario:** A game with a Main Menu, Settings screen, and Credits screen. The player can open Settings from the Main Menu, then go back.
+A game with Main Menu, Settings, and Credits. Open Settings or Credits from the menu, then go back.
 
-#### Layer structure
 ```
 [UI]
     [Credits]
@@ -872,761 +819,589 @@ Event: On reset options clicked
     [Main Menu]
 ```
 
-#### Event sheet
 ```
-// ── Layout Start ──────────────────────────────────────────
+// ── Layout Start ──
 Event: On start of layout
-  Action: Setup: Screen Layer -> "Main Menu"
-  Action: Setup: Screen Layer -> "Settings"
-  Action: Setup: Screen Layer -> "Credits"
-  Action: Show screen        -> "Main Menu"
+  Action: UIDirector → Setup layer "Main Menu" as Screen
+  Action: UIDirector → Setup layer "Settings" as Screen
+  Action: UIDirector → Setup layer "Credits" as Screen
+  Action: UIDirector → Go to screen "Main Menu" (Push)
 
-// ── Navigation ────────────────────────────────────────────
-Event: Button "Settings" -> On clicked
-  Action: Show screen -> "Settings"
+// ── Navigation ──
+Event: Button "Settings" → On clicked
+  Action: UIDirector → Go to screen "Settings" (Push)
 
-Event: Button "Credits" -> On clicked
-  Action: Show screen -> "Credits"
+Event: Button "Credits" → On clicked
+  Action: UIDirector → Go to screen "Credits" (Push)
 
-Event: Button "Back" (on any screen) -> On clicked
-  Action: Go back
+Event: Button "Back" (on any screen) → On clicked
+  Action: UIDirector → Go back
 
-// ── Show Back button only when there's history ────────────
-Event: Every tick
-  Action: Set Button "Back" visible -> Can go back
+// ── Show Back button only when there's history ──
+Event: UIDirector → Can go back
+  Action: Set Button "Back" visible → true
+Event: UIDirector → [X] Can go back   (condition inverted)
+  Action: Set Button "Back" visible → false
 
-// ── Sound effects on screen changes ──────────────────────
-Trigger: On any layer state changed
-  Condition: LastChangedState() = "focused"
-    Action: Play sound -> "screen_open"
+// ── Sound on screen changes ──
+Trigger: UIDirector → On any layer state changed
+  Condition: UIDirector.LastChangedState = "focused"
+    Action: Play sound "screen_open"
 ```
 
 ---
 
 ### Use Case 2 - Pause Menu with HUD
 
-**Scenario:** A game with a HUD that stays visible during play. When the player pauses, the Pause Menu appears over the HUD. The HUD must remain visible but not interactive while paused.
+A HUD stays visible during play. Pausing shows the Pause Menu over the HUD; the HUD stays visible but non-interactive while paused, and the game freezes.
 
-#### Key design choice
-- `HUD` -> normal role, **modal: false** - it remains visible while other screens are focused.
-- `Pause Menu` -> normal role, **modal: true** - disabling all other normals (including HUD) while focused.
+- `HUD` → Screen, **modal false** - stays visible while other screens are focused.
+- `Pause Menu` → Screen, **modal true** - disables all other screens (including HUD) while focused.
 
-#### Event sheet
 ```
-// ── Layout Start ──────────────────────────────────────────
+// ── Layout Start ──
 Event: On start of layout
-  Action: Track layer -> "HUD",        Role: Normal, Modal: false, Manage collisions: false
-  Action: Track layer -> "Pause Menu", Role: Normal, Modal: true,  Manage collisions: false
-  Action: Set layer state -> "HUD", state: visible
-  // HUD is visible but not on the focus stack
+  Action: UIDirector → Setup layer "HUD" as Screen, modal false, sync collisions false
+  Action: UIDirector → Setup layer "Pause Menu" as Screen, modal true, sync collisions false
+  Action: UIDirector → Set "HUD" to Visible
 
-  // Optional: freeze the game when the pause menu opens, keep menu itself animated
-  Action: Set layer timescale -> "Pause Menu", instanceTimescale: 1, runtimeTimescale: 0
-  // ↑ When "Pause Menu" opens → runtime.timeScale = 0 (game frozen)
-  //   "Pause Menu" instances still animate (their timeScale = 1)
-  //   When "Pause Menu" closes → runtime.timeScale restored automatically
+  // Freeze the game when the pause menu opens, keep the menu itself animated
+  Action: UIDirector → Set "Pause Menu" timescale: objects 1, game-while-open 0
 
-// ── Pause / Unpause ───────────────────────────────────────
-Event: Key "Escape" -> On pressed
-  Condition: NOT Screen "Pause Menu" is the active screen
-    Action: Show screen -> "Pause Menu"
+// ── Pause / Unpause ──
+Event: Key "Escape" → On pressed
+  Condition: NOT UIDirector → Screen "Pause Menu" is the active screen
+    Action: UIDirector → Go to screen "Pause Menu" (Push)
 
-Event: Key "Escape" -> On pressed
-  Condition: Screen "Pause Menu" is the active screen
-    Action: Go back
-    // HUD interactive state and runtime.timeScale are both automatically restored
+Event: Key "Escape" → On pressed
+  Condition: UIDirector → Screen "Pause Menu" is the active screen
+    Action: UIDirector → Go back
+    // HUD interactive state and runtime.timeScale both restored automatically
 
-Event: Button "Resume" (in Pause Menu) -> On clicked
-  Action: Go back
+Event: Button "Resume" (in Pause Menu) → On clicked
+  Action: UIDirector → Go back
 ```
-
-> **Timescale note:** The `Set layer timescale` call is optional. Leave it out if you do not need the game to freeze on pause. If you do use it, no manual `Set time scale` events are needed — UIDirector applies and restores the value automatically on open/close. See §17 for full details.
 
 ---
 
-### Use Case 3 - Inventory with Sub-Screens
+### Use Case 3 - Inventory with Sub-Screens (pass data)
 
-**Scenario:** An RPG with an Inventory screen, and an Item Detail screen that opens when the player clicks an item. The player can go Back from Item Detail to Inventory.
-
-#### Layer structure
-```
-[UI]
-    [Item Detail]
-    [Inventory]
-    [HUD]
-    [Main Menu]
-```
-
-#### Passing data to a screen before opening it
-
-Use **Set Layer Data** to pass context, then read it with `LayerData()` inside the trigger:
+An Item Detail screen opens when the player clicks an item. Pass context with **Go to screen with data**, read it with `LayerData()` in the `On screen shown` trigger.
 
 ```
-// ── Player clicks an item in Inventory ────────────────────
-Event: ItemSlot sprite -> On clicked
-  Action: Set layer data -> "Item Detail", key: "itemId",   value: ItemSlot.ItemId
-  Action: Set layer data -> "Item Detail", key: "itemName", value: ItemSlot.ItemName
-  Action: Show screen    -> "Item Detail"
+// ── Player clicks an item ──
+Event: ItemSlot → On clicked
+  Action: UIDirector → Set "Item Detail" data "itemName" = ItemSlot.ItemName
+  Action: UIDirector → Go to screen "Item Detail" with data "itemId" = ItemSlot.ItemId
 
-// ── Item Detail opens ─────────────────────────────────────
-Trigger: On screen shown -> "Item Detail"
-  Action: Set Text "ItemName" -> LayerData("Item Detail", "itemName")
-  Action: Set Text "ItemId"   -> LayerData("Item Detail", "itemId")
-  // Load item sprite, stats, etc. using the itemId
+// ── Item Detail opens ──
+Trigger: UIDirector → On screen shown "Item Detail"
+  Action: Set Text "ItemName" → UIDirector.LayerData("Item Detail", "itemName")
+  Action: Set Text "ItemId"   → UIDirector.LayerData("Item Detail", "itemId")
 
-// ── Back from Item Detail ─────────────────────────────────
-Event: Button "Back" -> On clicked
-  Action: Go back
+// ── Back ──
+Event: Button "Back" → On clicked
+  Action: UIDirector → Go back
 ```
 
 ---
 
 ### Use Case 4 - Confirmation Dialog
 
-**Scenario:** The player clicks "Delete Save". A confirmation popup appears. The rest of the UI stays visible but input is blocked until the player responds.
+A confirmation popup blocks background input until the player responds.
 
-#### Layer structure
 ```
-[UI]
-    [Confirm Dialog]   ← popup role
-    [Settings]
-    [Main Menu]
-```
+// ── Open ──
+Event: Button "Delete Save" → On clicked
+  Action: UIDirector → Popup: Show "Confirm Dialog"
 
-#### Event sheet
-```
-// ── Open the dialog ───────────────────────────────────────
-Event: Button "Delete Save" -> On clicked
-  Action: Open popup -> "Confirm Dialog"
+// ── Disable the trigger button while the dialog is open ──
+Trigger: UIDirector → On popup opened "Confirm Dialog"
+  Action: Set Button "Delete Save" enabled → false
 
-// ── Disable the Delete Save button while dialog is open ───
-Trigger: On popup opened -> "Confirm Dialog"
-  Action: Set Button "Delete Save" enabled -> false
-
-// ── Player confirms ───────────────────────────────────────
-Event: Button "Yes, Delete" (in dialog) -> On clicked
-  Action: Close popup -> "Confirm Dialog"
+// ── Confirm ──
+Event: Button "Yes, Delete" (in dialog) → On clicked
+  Action: UIDirector → Popup: Hide "Confirm Dialog"
   Action: Delete save file
 
-// ── Player cancels ────────────────────────────────────────
-Event: Button "Cancel" (in dialog) -> On clicked
-  Action: Close popup -> "Confirm Dialog"
+// ── Cancel ──
+Event: Button "Cancel" (in dialog) → On clicked
+  Action: UIDirector → Popup: Hide "Confirm Dialog"
 
-// ── Re-enable button after dialog closes ─────────────────
-Trigger: On popup closed -> "Confirm Dialog"
-  Action: Set Button "Delete Save" enabled -> true
+// ── Re-enable after it closes ──
+Trigger: UIDirector → On popup closed "Confirm Dialog"
+  Action: Set Button "Delete Save" enabled → true
 ```
 
 ---
 
 ### Use Case 5 - Item Tooltip on Hover
 
-**Scenario:** The player hovers over equipment slots. A tooltip appears showing item stats. Moving to a different slot swaps the tooltip instantly.
+Hovering equipment slots shows a tooltip; moving to another slot swaps it instantly.
 
-#### Layer structure
 ```
 [UI]
-    [Tooltip]   ← tooltip role
+    [Tooltip]   ← Tooltip role
     [Inventory]
 ```
 
-#### Event sheet
 ```
-// ── Show tooltip on hover ─────────────────────────────────
-Event: Mouse is over "Sword Slot" sprite
-  Condition: ActiveTooltip() ≠ "Tooltip"
-    Action: Set layer data -> "Tooltip", key: "text", value: "Iron Sword - Atk +12"
-    Action: Show tooltip -> "Tooltip"
-    // Showing a new tooltip always auto-hides the previous one
+Event: Mouse is over "Sword Slot"
+  Condition: UIDirector.ActiveTooltip ≠ "Tooltip"
+    Action: UIDirector → Set "Tooltip" data "text" = "Iron Sword - Atk +12"
+    Action: UIDirector → Tooltip: Show "Tooltip"
 
-Event: Mouse is over "Shield Slot" sprite
-  Condition: ActiveTooltip() ≠ "Tooltip"
-    Action: Set layer data -> "Tooltip", key: "text", value: "Wooden Shield - Def +5"
-    Action: Show tooltip -> "Tooltip"
+Event: Mouse is over "Shield Slot"
+  Condition: UIDirector.ActiveTooltip ≠ "Tooltip"
+    Action: UIDirector → Set "Tooltip" data "text" = "Wooden Shield - Def +5"
+    Action: UIDirector → Tooltip: Show "Tooltip"
 
-// ── Update tooltip text when it opens ────────────────────
-Trigger: On layer state changed -> "Tooltip"
-  Action: Set Text "TooltipText" -> LayerData("Tooltip", "text")
+// ── Update tooltip text when it changes state ──
+Trigger: UIDirector → On layer state changed "Tooltip"
+  Action: Set Text "TooltipText" → UIDirector.LayerData("Tooltip", "text")
 
-// ── Hide when not hovering anything ──────────────────────
+// ── Hide when not hovering anything ──
 Event: NOT (Mouse is over "Sword Slot" OR Mouse is over "Shield Slot")
-  Action: Hide active tooltip
+  Action: UIDirector → Tooltip: Hide active
 ```
 
 ---
 
 ### Use Case 6 - HUD with Collision Management
 
-**Scenario:** A top-down game where the HUD layer has invisible hitbox objects used for UI interactions. When the pause menu is open, these should not participate in collision detection against game objects.
-
-#### Setup
-Enable **Manage Collisions** when tracking the HUD:
+A top-down game where HUD hitboxes must not collide with game objects while the pause menu is open. Enable collision sync at registration:
 
 ```
 Event: On start of layout
-  Action: Track layer -> "HUD", Role: Normal, Modal: false, Manage collisions: true
-  //                                                         ↑ This mirrors collisionsEnabled
-  //                                                           with the interactive state
+  Action: UIDirector → Setup layer "HUD" as Screen, modal false, sync collisions true
 ```
 
-Now when the Pause Menu focuses (and the HUD becomes non-interactive), UIDirector disables `collisionsEnabled` on every instance that **currently has collisions on**. Instances that were already set to `collisionsEnabled = false` by the developer are left untouched. When the HUD becomes interactive again, only the instances UIDirector disabled are restored — nothing else is changed.
+When the Pause Menu focuses and the HUD becomes non-interactive, UIDirector disables `collisionsEnabled` only on instances that **currently have collisions on**, and restores exactly those when the HUD is interactive again. Instances you deliberately set collisions-off are never touched.
 
 ---
 
-### Use Case 7 - Full Screen Cutscene Overlay
+### Use Case 7 - Full-Screen Cutscene Overlay
 
-**Scenario:** During a cutscene, a full-screen overlay covers the entire UI. No buttons should be clickable. After the cutscene, the overlay fades out.
+A modal overlay covers the UI during a cutscene, then fades out.
 
-#### Layer structure
 ```
-[UI]
-    [Cutscene Overlay]   ← normal role, modal: true
-    [HUD]
-    [Main Menu]
-```
-
-#### Event sheet
-```
-// ── Start cutscene ────────────────────────────────────────
+// ── Start ──
 Event: Trigger "StartCutscene"
-  Action: Set layer animation -> "Cutscene Overlay", Type: fade, Duration: 500, Easing: linear
-  Action: Navigate to screen -> "Cutscene Overlay"
-  // Blocks other screens: true means all other normal layers are non-interactive
+  Action: UIDirector → Set "Cutscene Overlay" animation fade, 500 ms, linear, mirror on back false
+  Action: UIDirector → Go to screen "Cutscene Overlay" (Push)   // modal: blocks everything
 
-// ── End cutscene ─────────────────────────────────────────
+// ── End ──
 Event: Trigger "EndCutscene"
-  Action: Return to previous screen
-  // Cutscene Overlay fades out, previous screen and HUD are restored
+  Action: UIDirector → Go back
 
-// ── Sync cutscene content with fade-in ────────────────────
+// ── Sync cutscene content with the fade-in ──
 Event: Every tick
-  Condition: Layer "Cutscene Overlay" is animating
-  Condition: LayerAnimDirection("Cutscene Overlay") = "opening"
-    Action: Set opacity "CutsceneText" -> LayerAnimProgress("Cutscene Overlay")
+  Condition: UIDirector → Layer "Cutscene Overlay" is animating
+  Condition: UIDirector.LayerAnimDirection("Cutscene Overlay") = "opening"
+    Action: Set opacity "CutsceneText" → UIDirector.LayerAnimProgress("Cutscene Overlay") × 100
 ```
 
 ---
 
 ### Use Case 8 - Game Over Screen with Animation Sync
 
-**Scenario:** On death, a Game Over screen fades in. A "Play Again" sound fires only when the animation finishes (not when it starts).
+A "Game Over" sting fires only when the fade-in finishes, not when it starts.
 
 ```
-// ── Player dies ───────────────────────────────────────────
 Event: Player health ≤ 0
-  Action: Show screen -> "Game Over"
+  Action: UIDirector → Go to screen "Game Over" (Push)
 
-// ── Fire sound exactly when screen is fully visible ───────
-Trigger: On layer transition complete -> "Game Over"
-  Action: Play sound -> "gameover_sting"
-  Action: Set buttons visible -> true
+// ── Fire exactly when fully visible ──
+Trigger: UIDirector → On layer opened "Game Over"
+  Action: Play sound "gameover_sting"
+  Action: Set buttons visible → true
 
-// ── Hide buttons while screen is still animating in ───────
-Trigger: On layer opening -> "Game Over"
-  Action: Set buttons visible -> false
+// ── Hide buttons while still animating in ──
+Trigger: UIDirector → On layer opening "Game Over"
+  Action: Set buttons visible → false
 ```
 
 ---
 
-### Use Case 9 - Tutorial Flow with Pop-to-Root
+### Use Case 9 - Tutorial Flow with Skip-to-Start
 
-**Scenario:** A tutorial with multiple steps. The player can be several screens deep. A "Skip Tutorial" button should jump all the way back to the Main Menu regardless of how deep the player is.
+The player can be several steps deep; "Skip Tutorial" jumps all the way back to the Main Menu.
 
 ```
-// ── Navigate through tutorial steps ──────────────────────
-Event: Button "Next" -> On clicked
-  Action: Show screen -> "Tutorial Step 2"
+Event: Button "Next" → On clicked
+  Action: UIDirector → Go to screen "Tutorial Step 2" (Push)
 
-Event: Button "Next" (Step 2) -> On clicked
-  Action: Show screen -> "Tutorial Step 3"
+Event: Button "Next" (Step 2) → On clicked
+  Action: UIDirector → Go to screen "Tutorial Step 3" (Push)
 
-// ── Skip all the way back to Main Menu ────────────────────
-Event: Button "Skip Tutorial" -> On clicked
-  Action: Return to screen -> "Main Menu"
-  // Closes all intermediate screens and returns to Main Menu directly
+// ── Skip straight back ──
+Event: Button "Skip Tutorial" → On clicked
+  Action: UIDirector → Go to screen "Main Menu" (Return to)
 ```
 
 ---
 
 ### Use Case 10 - Multi-Layout Game with Persistent UI State
 
-**Scenario:** A game where the player transitions between an overworld and a dungeon layout. The inventory should remain open (and at the same depth in the focus stack) after the transition.
-
-#### Setup
-Enable **Persist Across Layouts** in the UIDirector properties.
+The inventory stays open at the same stack depth across an overworld → dungeon transition. Enable **Persist Across Layouts**.
 
 ```
-// ── In the overworld layout ───────────────────────────────
+// ── In each layout ──
 Event: On start of layout
-  Action: Setup: Screen Layer -> "HUD"
-  Action: Setup: Screen Layer -> "Inventory"
-  // UIDirector automatically restores the saved state from the previous layout.
-  // If Inventory was focused before the transition, it will be focused again.
+  Condition: Global "UIInited" = 0
+    Action: UIDirector → Setup layer "HUD" as Screen, modal false, sync collisions false
+    Action: UIDirector → Setup layer "Inventory" as Screen
+    Action: Set Global "UIInited" → 1
+  // UIDirector restores the saved state automatically; if Inventory was focused, it stays focused.
 
-// ── Transition to dungeon ─────────────────────────────────
+// ── Transition ──
 Event: Player enters dungeon door
-  Action: Go to layout -> "Dungeon"
-  // UIDirector saves current state to globalThis.__uimanager_state before the layout ends.
+  Action: Go to layout "Dungeon"
+  // UIDirector serialises its state before the layout ends and restores it after.
 ```
 
 ---
 
 ### Use Case 11 - Debug Overlay (Dev Only)
 
-**Scenario:** During development, show a persistent debug overlay that displays the current UI state without interfering with the game.
+A persistent debug overlay reading UIDirector expressions:
 
 ```
-// ── Register debug layer as non-modal visible screen ──────
 Event: On start of layout
-  // ... other layer registrations ...
-  Action: Track layer -> "Debug Overlay", Role: Normal, Modal: false
-  Action: Set layer state -> "Debug Overlay", state: visible
+  // ... other registrations ...
+  Action: UIDirector → Setup layer "Debug Overlay" as Screen, modal false, sync collisions false
+  Action: UIDirector → Set "Debug Overlay" to Visible
 
-// ── Update debug text every tick ─────────────────────────
 Event: Every tick
-  Action: Set "DebugText" -> "Screen: " & CurrentScreen()
-    & newline & "Depth:  " & FocusStackDepth()
-    & newline & "Popup:  " & TopPopup()
-    & newline & "Tip:    " & ActiveTooltip()
-    & newline & "Last:   " & LastChangedLayer() & " -> " & LastChangedState()
+  Action: Set "DebugText" → "Screen: " & UIDirector.CurrentScreen
+    & newline & "Depth:  " & UIDirector.FocusStackDepth
+    & newline & "Popup:  " & UIDirector.TopPopup
+    & newline & "Tip:    " & UIDirector.ActiveTooltip
+    & newline & "Last:   " & UIDirector.LastChangedLayer & " → " & UIDirector.LastChangedState
 ```
 
-> Disable Debug Mode in the UIDirector properties before shipping. Also untrack the Debug Overlay layer or wrap its setup in a global variable check.
+> The C3 Debugger (§16) surfaces all of this already - use it before building a custom overlay.
 
 ---
 
-### Use Case 12 - Loading Screen (Replace Screen)
+### Use Case 12 - Loading Screen (Replace)
 
-**Scenario:** The game shows a loading screen while assets load. After loading, the Main Menu should appear and the player must not be able to press Back to return to the loading screen.
+Show a loading screen, then replace it so the player cannot go back to it.
 
 ```
-// ── Show loading screen first (no history) ────────────────
 Event: On start of layout
-  Action: Setup: Screen Layer -> "Loading"
-  Action: Setup: Screen Layer -> "Main Menu"
-  Action: Show screen -> "Loading"
+  Action: UIDirector → Setup layer "Loading" as Screen
+  Action: UIDirector → Setup layer "Main Menu" as Screen
+  Action: UIDirector → Go to screen "Loading" (Push)
 
-// ── Loading finishes - replace so Back cannot go back ─────
 Event: Loading complete
-  Action: Replace current screen -> "Main Menu"
-  // Focus stack now contains only "Main Menu"
-  // "Loading" is gone from history
+  Action: UIDirector → Go to screen "Main Menu" (Replace)
+  // Focus stack now contains only "Main Menu"; "Loading" is gone from history.
 ```
 
 ---
 
 ### Use Case 13 - Toast Notification (Auto-dismiss Popup)
 
-**Scenario:** When the player saves the game, a "Game Saved" banner appears briefly, then disappears on its own. The player should not have to close it manually.
+A "Game Saved" banner appears briefly and disappears on its own.
 
 ```
-// ── Show the toast for 2 seconds ──────────────────────────
 Event: On save complete
-  Action: Show popup for duration -> "Toast Banner", 2000
+  Action: UIDirector → Popup: Show timed "Toast Banner" for 2000 ms
 
-// ── Optional: react when it closes automatically ──────────
-Trigger: On popup closed -> "Toast Banner"
-  Action: Play sound -> "whoosh"
+// ── Optional reaction when it closes ──
+Trigger: UIDirector → On popup closed "Toast Banner"
+  Action: Play sound "whoosh"
 ```
 
-The popup plays its normal opening and closing animations automatically. Calling **Hide popup** before the timer expires cancels the timer and hides it immediately.
+The popup plays its normal open/close animations. Calling `Popup: Hide "Toast Banner"` before the timer expires cancels it and hides immediately.
 
 ---
 
-### Use Case 14 - Direction-Aware Navigation (Mirror Animation)
+### Use Case 14 - Direction-Aware Tab Navigation (Mirror)
 
-**Scenario:** A settings menu with tabs: Audio, Video, Controls. Navigating right pushes a new tab from the right; pressing Back should slide the current tab out to the right (not back to the left).
+Settings tabs (Audio, Video, Controls) slide in from the right; pressing Back slides the current tab out to the right.
 
 ```
 Event: On start of layout
-  Action: Setup: Screen Layer -> "Audio"
-  Action: Setup: Screen Layer -> "Video"
-  Action: Setup: Screen Layer -> "Controls"
+  Action: UIDirector → Setup layer "Audio" as Screen
+  Action: UIDirector → Setup layer "Video" as Screen
+  Action: UIDirector → Setup layer "Controls" as Screen
 
-  // Set animation + mirror close in one action per tab
-  Action: Set layer animation -> "Audio",    slideLeft, 300, easeOut, mirror close: true
-  Action: Set layer animation -> "Video",    slideLeft, 300, easeOut, mirror close: true
-  Action: Set layer animation -> "Controls", slideLeft, 300, easeOut, mirror close: true
+  Action: UIDirector → Set "Audio" animation slideLeft, 300 ms, easeOut, mirror on back true
+  Action: UIDirector → Set "Video" animation slideLeft, 300 ms, easeOut, mirror on back true
+  Action: UIDirector → Set "Controls" animation slideLeft, 300 ms, easeOut, mirror on back true
 
-  Action: Show screen -> "Audio"
+  Action: UIDirector → Go to screen "Audio" (Push)
 
-// ── Tab navigation ────────────────────────────────────────
 Event: Tab "Video" clicked
-  Action: Show screen -> "Video"   // slides in from left
-
-Event: Tab "Controls" clicked
-  Action: Show screen -> "Controls"
+  Action: UIDirector → Go to screen "Video" (Push)    // slides in from left
 
 Event: Button "Back" clicked
-  Action: Go back                  // slides out to the right
+  Action: UIDirector → Go back                          // slides out to the right
 ```
 
 ---
 
-### Use Case 15 - Breadcrumb Trail (ScreenAtDepth + PreviousScreen)
+### Use Case 15 - "Back to X" Label & Depth Indicator
 
-**Scenario:** Display a breadcrumb showing the player's current navigation path. Update it every time the active screen changes.
+Show where Back leads and how deep the player is. (`ScreenAtDepth` was removed in v1.2.0.0; use `PreviousScreen()` + `FocusStackDepth()`.)
 
 ```
-// ── Update breadcrumb whenever navigation changes ─────────
-Trigger: On any layer state changed
-
-  // Build path string from stack bottom to top
-  Action: Set Text "Breadcrumb" ->
-    ScreenAtDepth(1) & " > " & ScreenAtDepth(2) & " > " & CurrentScreen()
-
-// ── Show "Back to X" label on the Back button ────────────
 Event: Every tick
-  Action: Set Text "BackLabel" -> "< " & PreviousScreen()
-  Action: Set "BackLabel" visible -> Can go back
+  Action: Set Text "BackLabel" → "‹ " & UIDirector.PreviousScreen
+  Action: Set "BackLabel" visible → (UIDirector.PreviousScreen ≠ "")   // empty when nothing is below
+  Action: Set Text "DepthLabel" → "Depth: " & UIDirector.FocusStackDepth
 ```
+
+To show a full breadcrumb path, keep your own ordered list and push/pop it alongside your navigation, or read `CurrentScreen()` and `PreviousScreen()` for the last two levels.
 
 ---
 
-### Use Case 16 - Dim Scrim on Modal Screens and Popups
+### Use Case 16 - Dim Scrim on Modal Screens & Popups
 
-**Scenario:** Whenever a modal screen or popup is shown, a semi-transparent dark overlay covers the background. It disappears when the modal or popup closes.
+A semi-transparent overlay appears behind any modal screen or popup, automatically.
 
-**Setup (in UIDirector Properties Bar):**
-- **Dim Layer**: `"Dim"`
-- **Dim Opacity**: `0.5`
+**Setup (Properties Bar):** Dim Layer = `"Dim"`, Dim Opacity = `0.5`.
 
-**Layer structure:**
 ```
 [UI]
     [Tooltip]
-    [Confirm Dialog]   ← popup role
-    [Dim]              ← managed by UIDirector automatically (do NOT track)
-    [Settings]         ← normal, blocks others: true
-    [Main Menu]        ← normal, blocks others: true
+    [Confirm Dialog]   ← Popup role
+    [Dim]              ← managed automatically (do NOT track)
+    [Settings]         ← Screen, modal
+    [Main Menu]        ← Screen, modal
 ```
 
-No event sheet code needed. UIDirector manages the dim layer automatically based on whether any modal screen or popup is active. Place the Dim layer above normal screens but below popups in the layer order so it covers screens but not popups.
+No event-sheet code needed. Place the Dim layer above screens but below popups so it covers screens, not popups.
 
 ---
 
-### Use Case 17 - Home Button (Go Back to First Screen)
+### Use Case 17 - Home Button (Go to First Screen)
 
-**Scenario:** The player can navigate deep into menus (Main Menu -> Settings -> Controls -> Keybindings). A Home button anywhere in the game instantly returns them to the main menu, no matter how many screens deep they are.
+A Home button returns to the root no matter how deep the player is.
 
-**Event sheet:**
 ```
-// ── Home button pressed ────────────────────────────────────
 Event: On Home Button clicked
-  Action: Go back to first screen
-  // All screens above Main Menu are instantly closed.
-  // Main Menu is restored as the active screen.
+  Action: UIDirector → Go to first screen
 ```
 
-Use **Go back to first screen** instead of wiring multiple **Return to previous screen** calls. It is a single action that handles stacks of any depth.
+Use **Go to first screen** instead of chaining multiple `Go back` calls - it handles stacks of any depth in one action.
 
 ---
 
-### Use Case 18 - Gate Button Until Screen is Ready
+### Use Case 18 - Gate a Button Until the Screen is Ready
 
-**Scenario:** A screen slides in and a Submit button on it should be disabled until the animation is fully finished, so the player does not accidentally click through a half-visible screen.
+A Submit button stays disabled until its screen finishes animating in.
 
-**Event sheet:**
 ```
-// ── Disable button while screen is still animating ─────────
-Every tick
-  Condition: Layer is fully open -> "Checkout"
-  Action: Set SubmitButton -> Enabled: true
+Trigger: UIDirector → On layer opening "Checkout"
+  Action: Set SubmitButton enabled → false
 
-Every tick
-  Condition: Layer is fully open -> "Checkout" [INVERTED]
-  Action: Set SubmitButton -> Enabled: false
+Trigger: UIDirector → On layer opened "Checkout"
+  Action: Set SubmitButton enabled → true
 ```
 
-Alternatively, use the **On layer transition complete** trigger to enable the button in a one-shot event rather than checking every tick.
+Or poll it: `Layer "Checkout" is ready` (true only when visible/focused **and** done animating).
 
 ---
 
-### Use Case 19 - Emergency Clear (Close All Popups)
+### Use Case 19 - Emergency Clear (Hide All + Finish All)
 
-**Scenario:** The player changes layout (e.g. switches from the game to the main menu). Before the layout change, all open popups must be cleaned up so no stale state carries over.
+Before a layout change, clear popups and snap animations so no stale state carries over.
 
-**Event sheet:**
 ```
-// ── Before layout change ───────────────────────────────────
-Event: On "Return to Menu" button clicked
-  Action: Close all popups
-  Action: Skip all animations
+Event: On "Return to Menu" clicked
+  Action: UIDirector → Popup: Hide all
+  Action: UIDirector → Finish animation on ""    // blank = all
   Action: Go to layout "Main Menu"
 ```
-
-**Close all popups** is also useful when showing a game-critical alert that must not be obscured by any existing dialog.
 
 ---
 
 ### Use Case 20 - Scale-Based Dialog Motion
 
-**Scenario:** Use scale animation for a dialog so it pops in and out with stronger visual feedback.
+A shop dialog pops in/out with a scale + back-ease for punchy feedback.
 
 ```text
 Event: On start of layout
-  Action: Setup: Screen Layer -> "Shop Dialog"
-  Action: Set layer animation -> "Shop Dialog", "scaleUp", 280, "backOut", true
+  Action: UIDirector → Setup layer "Shop Dialog" as Screen
+  Action: UIDirector → Set "Shop Dialog" animation scaleUp, 280 ms, backOut, mirror on back true
 
 Event: Button "Open Shop" clicked
-  Action: Navigate to screen -> "Shop Dialog"
+  Action: UIDirector → Go to screen "Shop Dialog" (Push)
 
 Event: Button "Close Shop" clicked
-  Action: Return to previous screen
+  Action: UIDirector → Go back
 ```
 
-Tip: Scale animations include a separate fast opacity tween, so they stay readable even with elastic/back easing.
+Scale animations include a separate fast opacity tween, so they stay readable even with elastic/back easing.
 
-### Other game use cases
+### Other game-genre patterns
 
-**Platformer:** Use a persistent HUD layer plus modal pause and settings screens with stacked back navigation.
+**Platformer:** persistent HUD plus modal pause/settings screens with stacked back-navigation.
+**Metroidvania:** map and inventory as independent screens; popups for key-item confirmations.
+**Top-down shooter:** timed warning popups, auto-dismiss indicators, modal upgrade dialogs.
+**Roguelike:** run summary / seed / death recap as screens; `Return to` for rapid reset flows.
+**JRPG:** deep focus stacks for party / equipment / skills with mirror-on-back transitions.
+**Visual novel:** tooltip glossary terms plus modal confirmation popups for route choices.
+**Puzzle:** dim layer plus popup hints, `Popup: Hide all` before restarting.
+**Survival crafting:** crafting / recipe detail / confirmation layered cleanly.
+**City builder:** many non-modal utility panels alongside a focused settings stack.
+**Auto battler / idle:** timed shop and boost popups while the board HUD stays put.
+**Tactics:** ability-targeting overlays as modal screens that freeze gameplay via managed timescale.
+**Rhythm:** minimal transitions in gameplay, richer scale transitions for song select / results.
 
-**Metroidvania:** Keep map and inventory as independent screens while using popups for key item confirmations.
-
-**Top-down shooter:** Show temporary warning popups, auto-dismiss damage indicators, and block background input during upgrade dialogs.
-
-**Roguelike:** Drive run summary, seed info, and death recap through normal screens and use Return to screen for rapid reset flows.
-
-**JRPG:** Use deep focus stacks for party, equipment, and skill submenus with mirror-on-back transitions.
-
-**Visual novel:** Combine tooltip overlays for glossary terms with modal confirmation popups for route-affecting choices.
-
-**Puzzle game:** Use dim layer plus popup hints and close-all popups before restarting a puzzle.
-
-**Survival crafting:** Keep crafting, recipe detail, and confirmation prompts layered cleanly without manual visibility toggles.
-
-**City builder:** Use many independent utility panels as visible non-modal layers while preserving a focused settings stack.
-
-**Auto battler:** Show shop popups for limited time, then auto-dismiss while retaining the main board HUD.
-
-**Deckbuilder:** Use screen history for collection to deck edit to card detail, then pop back to exact prior context.
-
-**Tactics game:** Open ability targeting overlays as modal screens that freeze gameplay via managed runtime timescale.
-
-**Stealth game:** Show contextual tooltips and alerts while keeping gameplay layers untouched outside the UI container.
-
-**Racing game:** Use animated pause and results screens with instant transition skip during rematch flow.
-
-**Idle game:** Keep many passive panels visible, with popups for boosts and timed notifications.
-
-**Farm sim:** Navigate between map, inventory, and calendar with stable back behavior and persistent global UI.
-
-**Rhythm game:** Use minimal transitions during gameplay and richer scale transitions for song select and results.
-
-**Party game:** Handle multiple modal prompts and quickly clear all popups between rounds.
-
-**Educational game:** Use tooltip layers for definitions and guided step-by-step screen flows for lessons.
-
-**Narrative adventure:** Blend stack navigation for journal trees with popup confirmations for irreversible story choices.
+---
 
 ## 16. C3 Debugger
 
-UIDirector exposes a live panel in the **C3 Debugger** (the built-in debugger you open with F12 while previewing). No setup is needed — open the debugger, expand the UIDirector instance, and you see the full runtime state.
+UIDirector exposes a live panel in the **C3 Debugger** (open with F12 while previewing). No setup needed - expand the UIDirector instance to see full runtime state.
 
-### What the debugger shows
-
-**UI Director — Summary**
-
-A quick overview of the most important state at a glance.
+**UIDirector — Summary**
 
 | Field | What it shows |
 |---|---|
-| Active screen | Name of the screen currently at the top of the focus stack |
-| Stack depth | How many screens are in the navigation history |
+| Active screen | Name of the screen at the top of the focus stack |
+| Stack depth | Screens in the navigation history |
 | Open popups | Number of currently open popups |
 | Active tooltip | Name of the visible tooltip, or `(none)` |
-| Animating layers | Number of layers currently mid-transition |
-| Total tracked | Total number of layers registered with UIDirector |
-| Debug mode | Whether debug logging is active - **click to toggle live** without restarting the preview |
+| Animating layers | Layers currently mid-transition |
+| Runtime timescale | Current `runtime.timeScale` |
+| Total tracked | Layers registered with UIDirector |
+| Debug mode | Whether logging is active - **click to toggle live** |
 
-**UI Director — Focus Stack**
+**UIDirector — Focus Stack** — one row per screen, top-first (active labelled `◀ active`), showing each screen's state.
 
-One row per screen in the navigation history, shown top-first (active screen at the top, labelled `◀ active`). Each row shows the screen's current state.
+**UIDirector — Open Popups** — one row per popup; auto-dismiss popups show `⏳ auto-dismiss`.
 
-**UI Director — Open Popups**
+**Layer: [name]** — one section per tracked layer: role; state (with direction + progress % while animating, e.g. `focused (opening 42%)`); previous state; modal & mirror-on-back flags (screens); sync-collisions flag; animation override; runtime-timescale values; and any custom data keys.
 
-One row per currently open popup. Popups with an active auto-dismiss timer show `⏳ auto-dismiss`.
-
-**Layer: [name]**
-
-One section per tracked layer, showing:
-- Role (`normal`, `popup`, `tooltip`)
-- State — if animating, also shows direction and progress percentage (e.g. `focused  (opening  42%)`)
-- Previous state
-- Modal flag and mirror-on-back flag (normal-role layers only)
-- Sync collisions flag (if enabled)
-- Animation override (`animType`, `animDuration`, `animEasing`) if one has been set via **Set layer animation**
-- Runtime timescale (on open) — the stored global timescale that will be applied when this layer opens (only shown if configured via **Set layer timescale**)
-- Runtime timescale (saved) — the global timescale captured just before this layer applied its override; only present while the layer is open and actively holding a timescale override
-- Custom data key/value pairs (if any have been set via **Set layer data**)
-
-### How to use it
-
-1. Preview your project.
-2. Press **F12** (or use the C3 preview toolbar) to open the debugger.
-3. Find the **UIDirector** instance in the object list.
-4. Expand it to see all sections.
-5. The panel updates every frame — watch the state change live as you navigate screens, open popups, and trigger animations.
-
-The debugger panel replaces the need for debug Text objects that manually read expressions like `CurrentScreen()` or `LayerState()`. Everything is already surfaced in one place.
+The panel updates every frame - watch state change live as you navigate, open popups, and trigger animations. It replaces the need for debug Text objects reading `CurrentScreen()` or `LayerState()` by hand.
 
 ---
 
 ## 17. Timescale Control
 
-UIDirector provides two ways to control timescale for UI layers:
+UIDirector controls timescale two ways, both through the single **Set timescale** action (`objects` = per-instance, `game-while-open` = managed global runtime timescale).
 
-1. **Per-instance timescale** — override `instance.timeScale` on every instance in a layer (and its sublayers) so they run at a custom speed regardless of the global timescale.
-2. **Managed runtime timescale** — configure a layer so that when it opens, the global `runtime.timeScale` is automatically set to a target value, and when it closes, the previous value is automatically restored.
+### Per-object (instance) timescale
 
----
+The `objects` parameter sets `instance.timeScale` on every instance in the layer and its sublayers immediately. Pass `-1` to leave them unchanged.
 
-### Per-Instance Timescale
-
-**Action:** `Set layer timescale` (params: name, instanceTimescale, runtimeTimescale)
-
-The second parameter (`instanceTimescale`) sets `instance.timeScale` on every instance in the layer and sublayers immediately. Pass `-1` to leave instance timescales unchanged.
-
-| Scenario | Action |
+| Goal | Action |
 |---|---|
-| Keep UI animations running while game is paused (`runtime.timeScale = 0`) | `Set layer timescale → "MyLayer", 1, -1` |
-| Freeze a UI layer's animations temporarily | `Set layer timescale → "MyLayer", 0, -1` |
-| Run a countdown timer at double speed | `Set layer timescale → "MyLayer", 2, -1` |
-| Restore instances to follow global timescale again | `Reset layer timescale → "MyLayer"` |
+| Keep UI animating while the game is paused | `Set "MyLayer" timescale: objects 1, game-while-open -1` |
+| Freeze a layer's animations | `Set "MyLayer" timescale: objects 0, game-while-open -1` |
+| Run a countdown at double speed | `Set "MyLayer" timescale: objects 2, game-while-open -1` |
+| Restore objects to follow the global timescale | `Set "MyLayer" timescale: objects 1, game-while-open -1` |
 
-`Set layer timescale` applies `instance.timeScale` to every instance on the layer including instances inside sublayers (group layers are handled automatically). This is a one-time apply — call it again if new instances appear on the layer.
+This is a one-time apply - call it again if new instances appear on the layer.
 
-`Reset layer timescale` calls `instance.restoreTimeScale()` on every instance, which reverts them to following the global runtime timescale, and also clears any managed runtime timescale override.
+### Managed runtime (game-while-open) timescale
 
----
-
-### Managed Runtime Timescale
-
-**Action:** `Set layer timescale` (third parameter: `runtimeTimescale`)
-
-The third parameter stores a global runtime timescale on the layer. UIDirector applies it when the layer opens and restores the previous value on close. Pass `-1` to clear or skip the override.
-
-Use this when opening a specific screen should freeze or slow the entire game automatically:
+The `game-while-open` parameter stores a global runtime timescale on the layer. UIDirector applies it to `runtime.timeScale` when the layer **opens** and restores the previous value when it **closes**. Pass `-1` to clear/skip.
 
 ```
 ► On start of layout
-    UIDirector: Track layer "PauseMenu" as Normal
-    UIDirector: Set layer timescale → "PauseMenu", 1, 0
-    //                                              ↑  ↑
-    //                          instance=1 (menu animates)
-    //                             runtime=0 (game freezes when open)
+    UIDirector → Setup layer "PauseMenu" as Screen
+    UIDirector → Set "PauseMenu" timescale: objects 1, game-while-open 0
+    //                                       ↑ menu animates   ↑ game freezes when open
 
 ► Player presses Pause
-    UIDirector: Navigate to screen → "PauseMenu"
-    ✓ runtime.timeScale is now 0 — game is frozen
-    ✓ PauseMenu instances run at timeScale 1 — the menu still animates
+    UIDirector → Go to screen "PauseMenu" (Push)
+    ✓ runtime.timeScale → 0 (game frozen); PauseMenu instances run at 1 (still animate)
 
 ► Player presses Resume
-    UIDirector: Return to previous screen
-    ✓ runtime.timeScale restored to its previous value — game resumes
+    UIDirector → Go back
+    ✓ runtime.timeScale restored to its previous value - game resumes
 ```
 
-The `runtimeTimescale` value is stored on the layer. It is applied automatically when the layer opens (focus or show popup) and restored automatically when it closes (pop focus stack or hide popup).
+**To clear the override:** `Set "PauseMenu" timescale: objects 1, game-while-open 1` (or `-1` to skip).
 
-**To clear the override** so the layer no longer affects global timescale: `Set layer timescale → "MyLayer", -1, -1`
+### Stacking behaviour
 
----
-
-### Stacking Behaviour
-
-Managed runtime timescale stacks correctly when multiple layers with overrides open and close:
+Managed runtime timescale stacks correctly across nested layers:
 
 ```
 Start: runtime.timeScale = 1
-
-Open ScreenA (runtimeTimescale = 0)  → runtime = 0  (saved: 1)
-Open ScreenB (runtimeTimescale = 0.5) → runtime = 0.5 (saved: 0)
-Close ScreenB                        → runtime = 0  (ScreenA's value restored)
-Close ScreenA                        → runtime = 1  (original value restored)
+Open ScreenA (game-while-open 0)   → runtime = 0   (saved: 1)
+Open ScreenB (game-while-open 0.5) → runtime = 0.5 (saved: 0)
+Close ScreenB                      → runtime = 0   (ScreenA's value restored)
+Close ScreenA                      → runtime = 1   (original restored)
 ```
 
-Each layer saves the runtime timescale that was active when it opened, so restores are always accurate regardless of nesting depth.
+Each layer saves the timescale that was active when it opened, so restores are always accurate. The value is also restored safely on untrack and on layout teardown, preventing a permanently frozen game.
 
 ---
 
 ## 18. Scripting (C3 Script / JavaScript)
 
-UIDirector exposes many actions directly to script with `expose: true`, so calling these methods from script triggers the same behavior as event sheet actions.
+In **Addon SDK v2** the UIDirector instance **is** its own script interface - its methods are callable directly from C3 Script. The action methods the ACEs call (named `_act…`) are available on the instance and take plain string arguments for roles, states, and animation types (no combo indices).
 
-### Accessing the plugin instance
-
-In C3 Script, get the UIDirector single-global instance through your runtime object map, then call exposed methods on that instance.
+### Accessing the instance
 
 ```js
-const uiObjType = runtime.objects.UIDirector;
-const ui = uiObjType?.getFirstInstance();
+const ui = runtime.objects.UIDirector?.getFirstInstance();
 if (!ui) return;
 
-ui.NavigateToScreen("Main Menu");
+ui._actFocusLayer("Main Menu");   // same as: Go to screen "Main Menu" (Push)
 ```
 
-The object type name (`UIDirector` above) comes from your project object name.
+The object-type name (`UIDirector`) comes from your project's object name.
 
-### Calling actions from script
+### Action method reference
 
-Exposed methods are PascalCase names derived from the ACE files. Parameter order is exactly the same as the ACE action order.
+| Method | Parameters | Equivalent action |
+|---|---|---|
+| `_actTrackLayer` | `name, role, isModal, manageCollisions` | Setup layer (advanced). `role` = `"normal"`/`"popup"`/`"tooltip"` |
+| `_actUntrackLayer` | `name` | Untrack (one) |
+| `_actUntrackAllLayers` | — | Untrack (blank) |
+| `_actFocusLayer` | `name` | Go to screen (Push) |
+| `_actReplaceScreen` | `name` | Go to screen (Replace) |
+| `_actPopFocusToLayer` | `name` | Go to screen (Return to) |
+| `_actNavigateToScreenWithData` | `name, key, value` | Go to screen with data |
+| `_actPopFocusStack` | — | Go back |
+| `_actNavigateBackToRoot` | — | Go to first screen |
+| `_actSetLayerState` | `name, state` | Set layer state. `state` = `"visible"`/`"hidden"`/`"disabled"` |
+| `_actSetLayerInteractable` | `name, enabled` | Set input enabled |
+| `_actSetLayerAnimation` | `name, type, durationMs, easing, mirrorOnBack` | Set animation. `type`/`easing` are strings |
+| `_actSetLayerModal` | `name, isModal` | Set modal |
+| `_actSetLayerTimescale` | `name, objectsTimescale, runtimeTimescale` | Set timescale |
+| `_actSetLayerData` | `name, key, value` | Set data |
+| `_actSetLayerCollisions` | `name, enabled` | Sync collisions |
+| `_actShowPopup` / `_actHidePopup` | `name` | Popup: Show / Hide |
+| `_actShowPopupFor` | `name, durationMs` | Popup: Show timed |
+| `_actCloseAllPopups` | — | Popup: Hide all |
+| `_actShowTooltip` / `_actHideTooltip` | `name` | Tooltip: Show / Hide |
+| `_actHideActiveTooltip` | — | Tooltip: Hide active |
+| `_actCompleteTransition` | `name` | Finish animation on one |
+| `_actSkipAllAnimations` | — | Finish animation on all |
 
-| Method | Parameters |
-|---|---|
-| `TrackLayer` | `layerName, role, isModal, manageCollisions` |
-| `UntrackLayer` | `layerName` |
-| `UntrackAllLayers` | none |
-| `NavigateToScreen` | `layerName` |
-| `NavigateToScreenWithData` | `layerName, key, value` |
-| `ReplaceScreen` | `layerName` |
-| `ReturnToPreviousScreen` | none |
-| `ReturnToScreen` | `layerName` |
-| `NavigateBackToRoot` | none |
-| `SetLayerState` | `layerName, state` |
-| `SetLayerBlocksOthers` | `layerName, isModal` |
-| `SetLayerInputEnabled` | `layerName, enable` |
-| `SetLayerAnimation` | `layerName, type, duration, easing, mirrorOnBack` |
-| `SetLayerData` | `layerName, key, value` |
-| `SetLayerTimescale` | `layerName, instanceTimescale, runtimeTimescale` |
-| `ResetLayerTimescale` | `layerName` |
-| `SyncCollisions` | `layerName, enabled` |
-| `ShowPopup` | `layerName` |
-| `HidePopup` | `layerName` |
-| `ShowPopupFor` | `layerName, durationMs` |
-| `CloseAllPopups` | none |
-| `ShowTooltip` | `layerName` |
-| `HideTooltip` | `layerName` |
-| `HideActiveTooltip` | none |
-| `FinishAnimationInstantly` | `layerName` |
-| `SkipAllAnimations` | none |
-
-Combo parameters use 0-based numeric indices in script calls, same as ACE runtime values:
+### Complete script example
 
 ```js
-// type: slideLeft, easing: backOut
-ui.SetLayerAnimation("Settings", 1, 350, 8, true);
-```
+export function initUi(runtime) {
+  const ui = runtime.objects.UIDirector?.getFirstInstance();
+  if (!ui) return;
 
-### Reading state from script
+  ui._actTrackLayer("Main Menu", "normal", true, false);
+  ui._actTrackLayer("Settings", "normal", true, false);
+  ui._actTrackLayer("Confirm Dialog", "popup", true, false);
 
-Expressions are not callable as methods. Use event sheet expressions for direct reads, or mirror the values to script via function calls/events when needed.
-
-For script-side loops that correspond to Count + Index expressions, use a standard loop:
-
-```js
-const count = runtime.globalVars.TrackedCount ?? 0; // example bridge from event sheet
-for (let i = 0; i < count; i++) {
-  // request name i from event-sheet function or stored array
+  ui._actSetLayerAnimation("Settings", "slideLeft", 300, "easeOut", true);
+  ui._actFocusLayer("Main Menu");
 }
 ```
 
-### Listening to events from script
+### Reading state & listening to events from script
 
-UIDirector triggers are event-sheet conditions, not DOM-style script listeners. The recommended pattern is:
+Expressions and triggers are event-sheet features, not script methods. The recommended pattern is to catch a UIDirector trigger in the event sheet and forward the context into script:
 
-1. Catch the UIDirector trigger in event sheet.
-2. Call a C3 Script function with `LastChangedLayer()` and `LastChangedState()`.
-3. Handle your script-side logic there.
+```text
+Trigger: UIDirector → On any layer state changed
+  Action: Script → onUiLayerChanged(UIDirector.LastChangedLayer, UIDirector.LastChangedState)
+```
 
 ```js
 export function onUiLayerChanged(layerName, state) {
@@ -1636,116 +1411,77 @@ export function onUiLayerChanged(layerName, state) {
 }
 ```
 
-### Complete script example
+> The internal `_lastChangedLayer` / `_lastChangedState` fields are readable directly on the instance too (`ui._lastChangedLayer`), but the event-sheet bridge above is the stable, supported path.
 
-```js
-export function initUi(runtime) {
-  const ui = runtime.objects.UIDirector?.getFirstInstance();
-  if (!ui) return;
-
-  ui.TrackLayer("Main Menu", 0, true, false);     // role 0 = normal
-  ui.TrackLayer("Settings", 0, true, false);
-  ui.TrackLayer("Confirm Dialog", 1, true, false); // role 1 = popup
-
-  // type 1 = slideLeft, easing 2 = easeOut
-  ui.SetLayerAnimation("Settings", 1, 300, 2, true);
-  ui.NavigateToScreen("Main Menu");
-}
-```
+---
 
 ## 19. UI Suite Integration
 
-This section explains how UIDirector fits with the UI Suite stack: UIForge, ButtonKit, ScrollCraft, SliderForge, and ToastBeam.
+UIDirector is designed to be the **navigation authority** in a UI suite (e.g. UIForge for gamepad/focus routing, FlourishCue for per-object animation). It has **no hard dependency** on any of them, and no addon looks another up by plugin ID - integration is rename-proof and automatic.
 
-### Integration model
+### The frozen compatibility surface
 
-UIDirector should be the navigation authority. UI Suite addons read layer interactivity and focus context from that navigation state.
+Companion addons integrate only through UIDirector's already-shipping surface. These names and meanings are **locked across versions** so integrations never break:
 
-```text
-UIDirector (navigation + layer gating)
-  -> UIForge (input routing + focus groups)
-    -> ButtonKit / ScrollCraft / SliderForge (interaction)
-      -> Your visuals
-  -> ToastBeam (independent notification channel)
-```
-
-### What is automatic vs one-time wiring
-
-| Behavior | Automatic | Requirement |
+| Need | What companions use | UIDirector feature |
 |---|---|---|
-| Modal/transition input blocking | Yes | Interactive objects are on UIDirector-managed layers |
-| Focus group auto-match by layer name | Yes | `focusGroup` blank + UIForge auto grouping enabled |
-| Screen focus push/pop sync | Yes | UIForge auto UIDirector sync enabled |
-| D-pad/confirm routing to focused controls | Yes | UIForge + Gamepad object in project |
-| Touch hover/tap routing | Yes | UIForge + Touch object in project |
-| Back navigation | Optional auto | See UIForge bridge methods below |
-| Input mode icon swap | No | Wire `OnInputModeChanged` once |
-| Back intercept confirmation flow | No | Wire `OnBackRequested` per case |
+| Follow the active screen | Poll `LastChangedLayer()` + `LastChangedState()` each tick | Expressions (§12) |
+| Know if back is possible | `Can go back` condition | §11 |
+| Drive a Back button | `Go back` action | §10 |
+| Per-object open/close animation in sync | Duck-typed `_playOpen` / `_playClose` / `_isAnimating` / `_finishAnimation` on layer instances | Animation barrier (below) |
 
-### Minimum integration setup
+Because all of these already exist, **nothing needs to be added to UIDirector** for the suite to work.
+
+### The animation barrier (per-object integration)
+
+When a layer opens or closes, UIDirector waits for **both** its own layer tween **and** any per-object transition behaviors on that layer before firing `On layer opened` / `On layer closed`. It detects those behaviors purely by duck typing - any behavior exposing `_playOpen` / `_playClose` / `_isAnimating` / `_finishAnimation` participates, with no hardcoded addon ID.
+
+This means staggered per-object entrances (e.g. FlourishCue buttons cascading in) finish *before* your "screen ready" logic runs, automatically. `Finish animation` calls `_finishAnimation()` on all detected behaviors and snaps the layer tween to the end.
+
+### Recommended wiring
 
 ```text
 Event: On start of layout
-  Action: Setup: Screen Layer -> "MainMenu"
-  Action: Setup: Screen Layer -> "Settings"
-  Action: Setup: Popup Layer -> "ConfirmQuit"
-  Action: Show screen -> "MainMenu"
+  Action: UIDirector → Setup layer "MainMenu" as Screen
+  Action: UIDirector → Setup layer "Settings" as Screen
+  Action: UIDirector → Setup layer "ConfirmQuit" as Popup
+  Action: UIDirector → Go to screen "MainMenu" (Push)
 ```
 
-For UIForge/ButtonKit/ScrollCraft/SliderForge objects:
-- Place controls on the correct UIDirector screen layer.
-- Leave `focusGroup` blank when using layer-name auto grouping.
-- Keep UIDirector as the only owner of layer visible/interactive state.
-
-### Recommended back-flow wiring
-
-If you prefer explicit event-sheet wiring:
+- Place interactive controls on the correct UIDirector screen layer; modal blocking then gates them for free.
+- Keep UIDirector as the **only** owner of layer visible/interactive state.
+- Route a companion addon's "back requested" event to the **Go back** action; check **Can go back** first if you want to intercept (e.g. show a "Quit?" popup on the root screen).
 
 ```text
-Event: UIForge OnBackRequested
-  Action: UIDirector Go back
+Event: <companion> On back requested
+  Condition: UIDirector → Can go back
+    Action: UIDirector → Go back
+
+Event: <companion> On back requested
+  Condition: NOT UIDirector → Can go back   // at the root - confirm quit instead
+    Action: UIDirector → Popup: Show "ConfirmQuit"
 ```
 
-For modal confirmation interception:
+> **Note:** Earlier drafts proposed extra JS bridge methods (`_goBack`, `_getLastChangedLayer`, `_getLastChangedState`). These are **no longer used** - the suite integrates entirely through the ACE surface and expressions above.
 
-```text
-Event: UIForge OnBackRequested AND Screen is active "MainMenu"
-  Action: UIForge CancelBack
-  Action: UIDirector Open popup "ConfirmQuit"
-```
-
-### UIForge bridge methods (auto-back compatibility)
-
-UIDirector now provides lightweight runtime helper methods that UIForge can call directly:
-
-```js
-_goBack()
-_getLastChangedLayer()
-_getLastChangedState()
-```
-
-These map to existing UIDirector behavior:
-- `_goBack()` performs the same flow as Return to previous screen.
-- `_getLastChangedLayer()` and `_getLastChangedState()` expose transition context for sync logic.
-
-### Practical pairing notes
-
-- ButtonKit `IsClickable` naturally respects layer interactivity, so modal screens/popups block background buttons without extra events.
-- ScrollCraft and SliderForge continue to run in the active focus group while UIDirector handles screen transitions.
-- ToastBeam should be treated as an independent notification pipeline. It can coexist with modal screens, but it should not own navigation.
+---
 
 ## 20. Tips and Common Mistakes
 
-**Layers must be sublayers of the container group.** If a layer is at the root level (not inside the group), UIDirector will not find it. Check the layer editor panel.
+**Layers must be inside the container group** (or anywhere in the layout if the container is blank). A layer at the wrong level won't be found - check the layer panel.
 
 **Layer names are case-sensitive.** `"Main Menu"` and `"main menu"` are different layers.
 
-**Don't skip registration.** Every layer you want UIDirector to manage must be registered with Track Layer (or a Setup action) before you call any other action on it.
+**Don't skip registration.** Every layer must be set up with `Setup layer` (or `Setup layer (advanced)`) before any other action targets it. Use **Layer is tracked** to guard if unsure.
 
-**`Set Layer State` vs `Navigate to screen`.** Use `Navigate to screen` / `Show Screen` for navigation. Use `Set Layer State` only when you want to change visibility without affecting the screen history - for example, showing a HUD layer that sits alongside screens.
+**`Set layer state` vs `Go to screen`.** Use `Go to screen` for navigation (it manages history). Use `Set layer state` only to change visibility without touching the focus stack - e.g. a HUD that sits alongside screens.
 
-**Non-modal + `Set Layer State: visible` = always-on layer.** Register a layer as non-modal and set it to `visible` (not focused). It will stay visible regardless of what else is focused. The HUD pattern above uses this approach.
+**Non-modal + `Set … to Visible` = always-on layer.** Register a screen non-modal and set it Visible (not focused) and it stays visible regardless of what else is focused. That's the HUD pattern.
 
-**Animations block interaction.** While a layer is animating (opening or closing), its `interactive` property is `false`. If you need to gate logic on the animation completing, use the **On layer transition complete** trigger.
+**Animations block interaction.** While a layer animates, its `isInteractive` is false. To run logic only after it's done, use **On layer opened** / **On layer closed**, or poll **Layer is ready**.
 
-**`Skip all animations` is useful for instant layout reset.** Call it before a layout transition or when you need the UI to be in a known state immediately.
+**Combos arrive as indices.** In the event sheet you pick a label; at runtime UIDirector maps it to a string key. From script, the `_act…` methods take strings directly - no index juggling.
+
+**`Popup: Hide all` / `Finish animation on ""` are great pre-transition resets.** Call them before a layout change to leave the UI in a known state.
+
+**Don't track the Dim layer.** UIDirector manages its visibility and opacity automatically from the Dim Layer property.

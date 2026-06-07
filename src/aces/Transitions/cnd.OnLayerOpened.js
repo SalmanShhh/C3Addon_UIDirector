@@ -1,8 +1,8 @@
 export const config = {
-  listName: "On layer opening",
-  displayText: "On layer {0} opening",
+  listName: "On layer opened",
+  displayText: "On layer {0} opened",
   description:
-    "Triggers when a layer starts its opening animation. Use LayerAnimProgress / LayerAnimDirection inside. Good for starting music or parallel intro effects.",
+    "Triggers after a layer finishes its opening animation. A safe point to enable controls or start effects once the layer is fully visible.",
   isTrigger: true,
   highlight: false,
   deprecated: false,

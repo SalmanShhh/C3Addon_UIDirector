@@ -63,5 +63,10 @@
     "added": "- add support for FlourishCue Addon.",
     "changed": "",
     "fixed": ""
+  },
+  "1.2.0.0": {
+    "added": "",
+    "changed": "update compatibility layer with other UI addons.",
+    "fixed": ""
   }
 }

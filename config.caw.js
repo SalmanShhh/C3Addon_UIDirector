@@ -40,12 +40,10 @@ export const files = {
 
 // Display names for ACE categories (folder name -> display name)
 export const aceCategories = {
-  Common: "Common",
-  Tracking: "Layer Tracking",
-  Layer_State: "Layer State",
-  Focus_Stack: "Focus Stack",
-  Popups: "Popups",
-  Tooltips: "Tooltips",
+  Setup: "Setup",
+  Navigation: "Navigation",
+  Layers: "Layers",
+  Popups_Tooltips: "Popups & Tooltips",
   Transitions: "Transitions & Events",
 };
 
@@ -93,16 +91,16 @@ export const info = {
 // 0: uiContainerLayer
 // 1: GROUP "Transitions" (no value)
 // 2: defaultAnimType  3: defaultAnimDuration  4: defaultAnimEasing
-// 5: GROUP "Behavior" (no value)
-// 6: persistAcrossLayouts  7: debugMode
-// 8: GROUP "Modal / Dim" (no value)
-// 9: dimLayer  10: dimOpacity
+// 5: GROUP "Modal / Dim" (no value)
+// 6: dimLayer  7: dimOpacity
+// 8: GROUP "Behavior" (no value)
+// 9: persistAcrossLayouts  10: debugMode
 export const properties = [
   {
     type: PROPERTY_TYPE.TEXT,
     id: "uiContainerLayer",
     name: "UI Container Layer",
-    desc: 'Name of the group layer in your layout that contains all managed UI sublayers. Example: if your group layer is called "UI", enter "UI" here.',
+    desc: 'Name of the group layer in your layout that contains all managed UI sublayers. Example: if your group layer is called "UI", enter "UI" here. Leave blank to search the whole layout.',
     options: { initialValue: "UI" },
   },
   {
@@ -116,7 +114,7 @@ export const properties = [
     type: PROPERTY_TYPE.COMBO,
     id: "defaultAnimType",
     name: "Default Animation",
-    desc: "The default transition animation played when showing or hiding a layer. Can be overridden per-layer with Set Layer Animation.",
+    desc: "The default transition animation played when showing or hiding a layer. Can be overridden per-layer with the Set animation action.",
     options: {
       initialValue: "fade",
       items: [
@@ -134,7 +132,7 @@ export const properties = [
   {
     type: PROPERTY_TYPE.INTEGER,
     id: "defaultAnimDuration",
-    name: "Default Anim Duration (ms)",
+    name: "Default Duration (ms)",
     desc: "How long the default transition animation takes, in milliseconds. Example: 200 = a quick 0.2 second fade.",
     options: { initialValue: 200, minValue: 0 },
   },
@@ -162,27 +160,6 @@ export const properties = [
   },
   {
     type: PROPERTY_TYPE.GROUP,
-    id: "groupBehavior",
-    name: "Behavior",
-    desc: "Global behavior settings.",
-    options: {},
-  },
-  {
-    type: PROPERTY_TYPE.CHECK,
-    id: "persistAcrossLayouts",
-    name: "Persist Across Layouts",
-    desc: "If enabled, UIDirector remembers tracked layers and their states when the layout changes. Layer references are re-resolved on the new layout.",
-    options: { initialValue: false },
-  },
-  {
-    type: PROPERTY_TYPE.CHECK,
-    id: "debugMode",
-    name: "Debug Mode",
-    desc: "If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release.",
-    options: { initialValue: false },
-  },
-  {
-    type: PROPERTY_TYPE.GROUP,
     id: "groupModalDim",
     name: "Modal / Dim",
     desc: "Modal dim layer settings.",
@@ -201,5 +178,26 @@ export const properties = [
     name: "Dim Opacity",
     desc: "The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent).",
     options: { initialValue: 0.5 },
+  },
+  {
+    type: PROPERTY_TYPE.GROUP,
+    id: "groupBehavior",
+    name: "Behavior",
+    desc: "Global behavior settings.",
+    options: {},
+  },
+  {
+    type: PROPERTY_TYPE.CHECK,
+    id: "persistAcrossLayouts",
+    name: "Persist Across Layouts",
+    desc: "If enabled, UIDirector remembers tracked layers and their states when the layout changes. Layer references are re-resolved on the new layout.",
+    options: { initialValue: false },
+  },
+  {
+    type: PROPERTY_TYPE.CHECK,
+    id: "debugMode",
+    name: "Debug Mode",
+    desc: "If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release.",
+    options: { initialValue: false },
   },
 ];

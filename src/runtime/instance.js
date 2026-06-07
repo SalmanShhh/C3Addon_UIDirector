@@ -25,8 +25,8 @@ export default function (parentClass) {
       // GROUP properties occupy index slots (no value).
       // 0:uiContainerLayer
       // 1:GROUP(Transitions) 2:defaultAnimType 3:defaultAnimDuration 4:defaultAnimEasing
-      // 5:GROUP(Behavior) 6:persistAcrossLayouts 7:debugMode
-      // 8:GROUP(Modal/Dim) 9:dimLayer 10:dimOpacity
+      // 5:GROUP(Modal/Dim) 6:dimLayer 7:dimOpacity
+      // 8:GROUP(Behavior) 9:persistAcrossLayouts 10:debugMode
       const props = this._getInitProperties();
       if (props) {
         // COMBO properties arrive as 0-based numeric indices — map to strings.
@@ -35,10 +35,10 @@ export default function (parentClass) {
           defaultAnimType:     ANIM_TYPE_KEYS[props[2]] ?? "fade",
           defaultAnimDuration: props[3],
           defaultAnimEasing:   EASING_KEYS[props[4]]   ?? "easeOut",
-          persistAcrossLayouts: props[6],
-          debugMode:           props[7],
-          dimLayer:            props[9],
-          dimOpacity:          props[10],
+          dimLayer:            props[6],
+          dimOpacity:          props[7],
+          persistAcrossLayouts: props[9],
+          debugMode:           props[10],
         };
       } else {
         this._props = {};
@@ -221,7 +221,7 @@ export default function (parentClass) {
       const hasPopup = this._popupStack.length > 0;
       const topFrame = this._focusStack.at(-1);
       const topEntry = topFrame ? this._getEntry(topFrame.layerName) : null;
-      const hasFocusedModal = topEntry?.isModal === true;
+      const hasFocusedModal = !!topEntry?.isModal;
 
       const shouldDim = hasPopup || hasFocusedModal;
       dimRef.isVisible  = shouldDim;
@@ -496,7 +496,6 @@ export default function (parentClass) {
       const cb = entry.animOnComplete;
       entry.animOnComplete = null;
 
-      this._trigger("OnLayerTransitionComplete");
       cb?.();
       this._log(`Anim complete: ${entry.name}`);
     }
@@ -918,11 +917,18 @@ export default function (parentClass) {
     }
 
     // Centralized transition wrappers keep action methods focused on intent.
+    // OnLayerOpening/OnLayerOpened and OnLayerClosing/OnLayerClosed fire here so
+    // every open/close path (navigation, state change, popup) emits them consistently.
     _runOpeningTransition(entry, onOpened) {
+      this._lastChangedLayer = entry.name;
       this._trigger("OnLayerOpening");
 
       const motions = this._collectFlourishCue(entry.ref);
-      const signal = this._makeBarrier(1 + motions.length, onOpened);
+      const signal = this._makeBarrier(1 + motions.length, () => {
+        onOpened?.();
+        this._lastChangedLayer = entry.name;
+        this._trigger("OnLayerOpened");
+      });
 
       // Ensure objects can run their own intro animation immediately.
       entry.ref.isVisible = true;
@@ -938,10 +944,15 @@ export default function (parentClass) {
     }
 
     _runClosingTransition(entry, onClosed, isBackNav = false) {
+      this._lastChangedLayer = entry.name;
       this._trigger("OnLayerClosing");
 
       const motions = this._collectFlourishCue(entry.ref);
-      const signal = this._makeBarrier(1 + motions.length, onClosed);
+      const signal = this._makeBarrier(1 + motions.length, () => {
+        onClosed?.();
+        this._lastChangedLayer = entry.name;
+        this._trigger("OnLayerClosed");
+      });
 
       for (const m of motions) {
         try {
@@ -962,24 +973,6 @@ export default function (parentClass) {
     _applyAndClearPendingState(entry) {
       this._applyState(entry, entry.pendingState);
       entry.pendingState = null;
-    }
-
-    // UI Suite bridge methods (used by UIForge when available).
-    // These intentionally forward to existing UIDirector state/actions.
-    _navigateBack() {
-      this._actPopFocusStack();
-    }
-
-    _goBack() {
-      this._navigateBack();
-    }
-
-    _getLastChangedLayer() {
-      return this._lastChangedLayer ?? "";
-    }
-
-    _getLastChangedState() {
-      return this._lastChangedState ?? "";
     }
 
     _createLayerEntry({
@@ -1175,7 +1168,7 @@ export default function (parentClass) {
 
       this._runOpeningTransition(entry, () => {
         this._applyState(entry, "focused");
-        this._trigger("OnLayerFullyOpened");
+        this._trigger("OnScreenShown");
         this._emitLayerStateChanged();
       });
 
@@ -1209,7 +1202,7 @@ export default function (parentClass) {
           this._restoreRuntimeTimescale(entry);
         }
         this._restoreInteractiveSnapshot(frame.interactiveSnapshot);
-        this._trigger("OnLayerFullyClosed");
+        this._trigger("OnScreenHidden");
         this._trigger("OnLayerStateChanged");
         this._trigger("OnAnyLayerStateChanged");
       }, true /* isBackNav */);
@@ -1254,6 +1247,7 @@ export default function (parentClass) {
         entry.ref.isInteractive = true;
         this._setLayerCollisions(entry, true);
         entry.state = "visible";
+        this._trigger("OnPopupOpened");
         this._emitLayerStateChanged();
       });
     }
@@ -1278,6 +1272,7 @@ export default function (parentClass) {
         this._popupStack  = this._popupStack.filter(n => n !== layerName);
         this._restoreRuntimeTimescale(entry);
         this._updateDimLayer();
+        this._trigger("OnPopupClosed");
         this._emitLayerStateChanged();
       });
     }

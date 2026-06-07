@@ -1,8 +1,8 @@
 export const config = {
-  listName: "On layer closing",
-  displayText: "On layer {0} closing",
+  listName: "On popup closed",
+  displayText: "On popup {0} closed",
   description:
-    "Triggers when a layer starts its closing animation. Good for fading out music or starting a parallel exit effect.",
+    "Triggers when a popup hides. Use to check the player's choice after a confirmation dialog.",
   isTrigger: true,
   highlight: false,
   deprecated: false,
@@ -10,7 +10,7 @@ export const config = {
     {
       id: "layerName",
       name: "Layer name",
-      desc: "The layer to watch.",
+      desc: "The popup layer to watch.",
       type: "string",
       initialValue: '""',
     },
@@ -20,5 +20,5 @@ export const config = {
 export const expose = false;
 
 export default function (layerName) {
-  return this._lastChangedLayer === layerName;
+  return this._lastChangedLayer === layerName && this._lastChangedState === "hidden";
 }

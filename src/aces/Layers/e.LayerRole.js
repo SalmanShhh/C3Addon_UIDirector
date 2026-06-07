@@ -1,7 +1,7 @@
 export const config = {
   returnType: "string",
   description:
-    "Returns a layer's animation direction: 'opening', 'closing', or empty. Use to play different sounds based on whether a screen is coming in or going out.",
+    "Returns a layer's role: 'normal', 'popup', 'tooltip', or empty if untracked. Use for debug displays or role-specific logic.",
   highlight: false,
   deprecated: false,
   params: [
@@ -17,5 +17,5 @@ export const config = {
 export const expose = false;
 
 export default function (layerName) {
-  return this._layers.get(layerName)?.animDir ?? "";
+  return this._layers.get(layerName)?.role ?? "";
 }
