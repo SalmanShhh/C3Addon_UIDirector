@@ -12,7 +12,7 @@ export const config = {
       name: "Mode",
       desc: "Show = display this tooltip (hides any other). Hide = hide this tooltip. Hide active = hide whichever tooltip is currently showing.",
       type: "combo",
-      initialValue: "Show",
+      initialValue: "show",
       items: [
         { show: "Show" },
         { hide: "Hide" },

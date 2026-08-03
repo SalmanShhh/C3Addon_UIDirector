@@ -10,7 +10,9 @@ export const config = {
   params: [],
 };
 
-export const expose = false;
+// Exposed on the instance so companion addons (e.g. UIForge) can call it directly
+// as a guard before driving back-navigation. Keep true — UIForge reads this.
+export const expose = true;
 
 export default function () {
   return this._focusStack.length > 0;

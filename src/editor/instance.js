@@ -6,18 +6,13 @@ export default function (instanceClass) {
 
     Release() {}
 
-    OnCreate() {
-      // Set initial enabled state for Dim Opacity based on current Dim Layer value.
-      const dimLayer = this.GetPropertyValue("dimLayer");
-      this.SetPropertyEnabled("dimOpacity", typeof dimLayer === "string" && dimLayer.trim().length > 0);
-    }
+    OnCreate() {}
 
-    OnPlacedInLayout() {}
-
-    OnPropertyChanged(id, value) {
-      if (id === "dimLayer") {
-        this.SetPropertyEnabled("dimOpacity", typeof value === "string" && value.trim().length > 0);
-      }
-    }
+    // NOTE: the editor SDK has no way to enable/disable or grey out individual
+    // Properties Bar entries (no SetPropertyEnabled on any base class). "Dim Opacity"
+    // is therefore always shown; it simply has no effect when "Dim Layer" is blank,
+    // which its description states. Property values, when needed, are read via
+    // this._inst.GetPropertyValue(id) — never this.GetPropertyValue(id).
+    OnPropertyChanged(id, value) {}
   };
 }

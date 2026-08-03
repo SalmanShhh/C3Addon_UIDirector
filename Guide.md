@@ -27,7 +27,9 @@ This guide reflects the consolidated **v1.2.0.0 action surface**: related action
 17. [Timescale Control](#17-timescale-control)
 18. [Scripting (C3 Script / JavaScript)](#18-scripting-c3-script--javascript)
 19. [UI Suite Integration](#19-ui-suite-integration)
-20. [Tips and Common Mistakes](#20-tips-and-common-mistakes)
+20. [Working Alongside Other Behaviors](#20-working-alongside-other-behaviors)
+21. [Anchored Objects](#21-anchored-objects)
+22. [Tips and Common Mistakes](#22-tips-and-common-mistakes)
 
 ---
 
@@ -45,7 +47,7 @@ This guide reflects the consolidated **v1.2.0.0 action surface**: related action
 
 **Animation-safe logic** - Layers are never interactive while animating. The `On layer opened` trigger fires only when the animation is completely finished, so buttons are never accidentally enabled on a half-visible screen.
 
-**Pause menus that auto-freeze and restore the game** - `Set timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it — with no manual save/restore logic in the event sheet. See §17.
+**Pause menus that auto-freeze and restore the game** - `Set timescale` stores a runtime timescale on a layer. When that layer opens, UIDirector applies it to the global `runtime.timeScale` automatically. When it closes, the previous value is restored. Opening a pause menu freezes the game; closing it resumes it, with no manual save/restore logic in the event sheet. See §17.
 
 **Per-object entrance animations that stay in sync** - When a layer opens, UIDirector waits for both its own layer tween *and* any per-object animation behaviors (like FlourishCue) before firing `On layer opened`. Staggered button entrances "just work" without you tracking each one.
 
@@ -166,7 +168,7 @@ Event: On start of layout
 
 That's it. UIDirector hides every other layer and shows `Main Menu`.
 
-> **`Setup layer` defaults:** Screens and Popups are modal (block other screens) by default; Tooltips are not. Need different defaults — non-modal screen, collision-synced layer? Use **Setup layer (advanced)** instead (see §10).
+> **`Setup layer` defaults:** Screens and Popups are modal (block other screens) by default; Tooltips are not. Need different defaults, such as a non-modal screen or a collision-synced layer? Use **Setup layer (advanced)** instead (see §10).
 
 ---
 
@@ -180,6 +182,7 @@ Configure these in the Properties Bar when the UIDirector object is selected. Th
 | **Default Animation** | Combo | `fade` | Animation used when no per-layer override is set. Options: `fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `none`, `scaleDown`, `scaleUp`. |
 | **Default Duration (ms)** | Integer | `200` | How long transitions take in milliseconds. |
 | **Default Easing** | Combo | `easeOut` | Easing curve. Options: `linear`, `easeIn`, `easeOut`, `easeInOut`, `quadraticOut`, `quarticOut`, `exponentialOut`, `circularOut`, `backOut`, `elasticOut`, `bounceOut`. |
+| **Anchored Objects** | Combo | `Move with layer` | How slide and scale transitions treat objects carrying the **Anchor** behavior. `Move with layer` slides and scales them along with everything else, then settles them back on their anchored position. `Stay in place` keeps them where Anchor puts them and animates only the objects attached to them, so an anchored bar acts as a fixed frame around moving contents. See §21. |
 | **Dim Layer** | Text | `""` | Optional. The name of a layer inside the container to use as a dim/scrim overlay. UIDirector automatically shows it whenever a modal screen or popup is active, and hides it otherwise. Leave blank to disable. See §9. |
 | **Dim Opacity** | Percent | `0.5` | The opacity of the dim layer when active (0 = invisible, 1 = fully opaque). |
 | **Persist Across Layouts** | Checkbox | Off | When enabled, the focus stack, registered layers, popups, and all layer states survive a C3 layout change. Works best with the container layer also marked **Global** in C3. |
@@ -466,6 +469,7 @@ Actions are grouped into five categories: **Setup**, **Navigation**, **Layers**,
 |---|---|---|
 | **Setup layer** | `Setup {layer} as {role}` | Register a layer as a `Screen`, `Popup`, or `Tooltip` with sensible defaults (Screen/Popup modal, Tooltip not). |
 | **Setup layer (advanced)** | `Setup {layer} as {role}, modal {modal}, sync collisions {sync}` | Full-control registration: choose role, modal blocking, and collision syncing explicitly. |
+| **Setup layer with transition** | `Setup {layer} as {role} with {type}, {ms} ms, {easing}, mirror on back {mirror}` | Register a layer and give it its own animation in one step. Any of animation, duration, or easing can be left as **Use plugin default** so that field follows the Transitions properties. |
 | **Untrack** | `Untrack {layer}` | Stop managing a layer. Leave the name **blank** to untrack everything and clear all stacks. |
 
 ### Navigation
@@ -510,8 +514,8 @@ These are **state-check** conditions (invertible, polled). Triggers are listed s
 
 | Condition | Parameters | Description |
 |---|---|---|
-| **Can go back** | — | True when there is a previous screen to return to. Use to show/hide a Back button. |
-| **No screens are open** | — | True when the focus stack is empty. |
+| **Can go back** | none | True when there is a previous screen to return to. Use to show/hide a Back button. |
+| **No screens are open** | none | True when the focus stack is empty. |
 | **Screen is the active screen** | layer | True when that screen is on top of the stack. |
 | **Screen is in navigation history** | layer | True when that screen appears anywhere in the stack. |
 | **Layer is in state** | layer, state | True when the layer's state matches (`Visible`/`Hidden`/`Disabled`/`Focused`). |
@@ -521,8 +525,8 @@ These are **state-check** conditions (invertible, polled). Triggers are listed s
 | **Layer is animating** | layer | True during a show/hide animation. |
 | **Layer blocks other screens** | layer | True when the layer is modal. |
 | **Layer is tracked** | layer | True when the layer is registered. Guard before referencing a layer. |
-| **Any popup is visible** | — | True when one or more popups are open. |
-| **A tooltip is visible** | — | True when a tooltip is active. |
+| **Any popup is visible** | none | True when one or more popups are open. |
+| **A tooltip is visible** | none | True when a tooltip is active. |
 
 > **Renamed in v1.2.0.0:** `Layer is fully open` is now **Layer is ready**.
 
@@ -568,9 +572,9 @@ Triggers fire in response to state changes. A trigger with a layer-name paramete
 | **On layer closing** | layer | A closing animation started. |
 | **On layer closed** | layer | A closing animation finished. Safe point to clean up. |
 | **On layer state changed** | layer | That specific layer's state changed. Use `LayerState()`, `PreviousLayerState()`. |
-| **On any layer state changed** | — | Any layer's state changed. Use `LastChangedLayer()`, `LastChangedState()`. |
+| **On any layer state changed** | none | Any layer's state changed. Use `LastChangedLayer()`, `LastChangedState()`. |
 
-> **Renamed/removed in v1.2.0.0:** `On layer fully opened` → **On layer opened**, `On layer fully closed` → **On layer closed**. The old `On layer transition complete` is gone — use **On layer opened** / **On layer closed**. (`On screen shown` / `On screen hidden` are now first-class navigation triggers, not aliases.)
+> **Renamed/removed in v1.2.0.0:** `On layer fully opened` → **On layer opened**, `On layer fully closed` → **On layer closed**. The old `On layer transition complete` is gone, so use **On layer opened** / **On layer closed**. (`On screen shown` / `On screen hidden` are now first-class navigation triggers, not aliases.)
 
 ---
 
@@ -1237,6 +1241,108 @@ Event: Button "Close Shop" clicked
 
 Scale animations include a separate fast opacity tween, so they stay readable even with elastic/back easing.
 
+### Use Case 21 - Per-Screen Transitions from Setup Alone
+
+**Scenario:** every screen in a menu flow enters differently, and you do not want a wall of `Set animation` actions next to every `Setup layer`.
+
+```text
+Event: On start of layout
+  // Each screen registers with its own transition in one action.
+  Action: UIDirector → Setup layer with transition "MainMenu" as Screen with Fade, -1 ms, Use plugin default, mirror on back False
+  Action: UIDirector → Setup layer with transition "Settings" as Screen with Slide Left, 250 ms, Ease Out, mirror on back True
+  Action: UIDirector → Setup layer with transition "Credits"  as Screen with Slide Up, 400 ms, Bounce Out, mirror on back False
+  Action: UIDirector → Setup layer with transition "ConfirmQuit" as Popup with Scale Up, 180 ms, Back Out, mirror on back False
+  Action: UIDirector → Go to screen "MainMenu" (Push)
+```
+
+`-1` duration and **Use plugin default** mean "follow the Transitions properties for this field". `MainMenu` above takes the project's default duration and easing but overrides only the animation type, so tuning the global feel later still moves it.
+
+### Use Case 22 - Fixed HUD Bar with Sliding Contents
+
+**Scenario:** a bottom action bar stays welded to the screen edge while its buttons slide up into it.
+
+**Layer structure**
+
+```text
+!UI                          (group, UI Container Layer)
+  └─ UI - HUD                (tracked as Screen)
+       UI_AnchorBottomBar    (Anchor: bottom-centre)
+         ├─ UI_AbilityButton (child)
+         └─ UI_AbilityButton (child)
+```
+
+```text
+// Plugin property: Anchored Objects = "Stay in place"
+Event: On start of layout
+  Action: UIDirector → Setup layer with transition "UI - HUD" as Screen with Slide Up, 300 ms, Ease Out, mirror on back True
+  Action: UIDirector → Go to screen "UI - HUD" (Push)
+```
+
+The anchor never moves, so the bar cannot drift off a differently-sized screen mid-animation, while the buttons parented to it animate against its live position. Switch the property to **Move with layer** if you would rather the whole bar slid in as one piece.
+
+### Use Case 23 - Cursor That Survives Screen Transitions
+
+**Scenario:** a gamepad-driven virtual cursor sits on the UI layer and is clamped to the viewport. Without cooperation it gets dragged to the screen edge every time a screen slides.
+
+```text
+Event: On start of layout
+  Action: UIDirector → Setup layer with transition "UI - Game" as Screen with Slide Right, 400 ms, Ease Out, mirror on back True
+  Action: UIDirector → Go to screen "UI - Game" (Push)
+
+// Nothing else to wire. The cursor behavior exposes _ownsPosition, so UIDirector
+// switches its clamp off for the transition, animates it with the layer, and hands
+// control back when the transition ends.
+```
+
+If the cursor addon predates the `_ownsPosition` contract, UIDirector reports `cannot be suspended` in the log and leaves the cursor standing still instead of dragging it against its bound. Either outcome is safe; only the first animates.
+
+### Use Case 24 - Physics Playfield Behind a Sliding Menu
+
+**Scenario:** a pinball table keeps simulating while the pause menu slides over it.
+
+```text
+Event: On start of layout
+  Action: UIDirector → Setup layer "Table" as Screen        // physics bodies live here
+  Action: UIDirector → Setup layer with transition "Pause" as Screen with Slide Down, 220 ms, Ease Out, mirror on back True
+  Action: UIDirector → Go to screen "Table" (Push)
+
+Event: On "Pause" pressed
+  Action: UIDirector → Set "Pause" timescale: objects -1, game-while-open 0
+  Action: UIDirector → Go to screen "Pause" (Push)
+```
+
+Physics objects are never repositioned by a transition, so the table is unaffected by the menu sliding in. Freezing the simulation is a **timescale** decision (see §17), kept separate from the animation on purpose.
+
+### Use Case 25 - Staggered Button Entrance That Gates "Screen Ready"
+
+**Scenario:** menu buttons cascade in with a per-object animation addon, and the first button must not become focusable until the whole cascade has finished.
+
+```text
+Event: On start of layout
+  Action: UIDirector → Setup layer with transition "MainMenu" as Screen with Fade, 200 ms, Ease Out, mirror on back False
+  Action: UIDirector → Go to screen "MainMenu" (Push)
+
+Event: UIDirector → On layer opened
+  Condition: UIDirector → LastChangedLayer() = "MainMenu"
+    Action: <focus addon> → Focus first control
+    // Fires only after the layer tween AND every per-object animation have completed.
+```
+
+Objects driven by `_playOpen` / `_playClose` are excluded from the layer sweep, so the two animation systems never fight over the same object. Any suspended Anchor or cursor clamp is also held off until the cascade ends.
+
+### Use Case 26 - Diagnosing "Nothing Moved"
+
+**Scenario:** a slide runs, the triggers fire, but nothing on screen appears to move.
+
+```text
+// Turn on Debug Mode in the Properties Bar, run the transition, read the console.
+[UIDirector]   behaviours visible: 4 across 3 object(s) - UI_Bar[Anchor], UI_Icon[none], UI_Ball[Physics]
+[UIDirector]   2 of 3 instance(s) animated, left to their behaviour: UI_Ball (Physics)
+[UIDirector]   1 position-owning behaviour(s) suspended for the transition: Anchor
+```
+
+Read it top down. The **behaviours visible** line proves UIDirector can see the objects and what is attached to them. The **animated** count tells you how many it is driving. Anything named after *left to their behaviour* or *held in place by Anchor* is deliberately excluded, and that name is your answer. If a slide or scale has nothing at all to animate, UIDirector warns even with Debug Mode off.
+
 ### Other game-genre patterns
 
 **Platformer:** persistent HUD plus modal pause/settings screens with stacked back-navigation.
@@ -1258,7 +1364,7 @@ Scale animations include a separate fast opacity tween, so they stay readable ev
 
 UIDirector exposes a live panel in the **C3 Debugger** (open with F12 while previewing). No setup needed - expand the UIDirector instance to see full runtime state.
 
-**UIDirector — Summary**
+**UIDirector: Summary**
 
 | Field | What it shows |
 |---|---|
@@ -1271,11 +1377,11 @@ UIDirector exposes a live panel in the **C3 Debugger** (open with F12 while prev
 | Total tracked | Layers registered with UIDirector |
 | Debug mode | Whether logging is active - **click to toggle live** |
 
-**UIDirector — Focus Stack** — one row per screen, top-first (active labelled `◀ active`), showing each screen's state.
+**UIDirector: Focus Stack** - one row per screen, top-first (active labelled `◀ active`), showing each screen's state.
 
-**UIDirector — Open Popups** — one row per popup; auto-dismiss popups show `⏳ auto-dismiss`.
+**UIDirector: Open Popups** - one row per popup; auto-dismiss popups show `⏳ auto-dismiss`.
 
-**Layer: [name]** — one section per tracked layer: role; state (with direction + progress % while animating, e.g. `focused (opening 42%)`); previous state; modal & mirror-on-back flags (screens); sync-collisions flag; animation override; runtime-timescale values; and any custom data keys.
+**Layer: [name]** - one section per tracked layer: role; state (with direction + progress % while animating, e.g. `focused (opening 42%)`); previous state; modal & mirror-on-back flags (screens); sync-collisions flag; animation override; runtime-timescale values; and any custom data keys.
 
 The panel updates every frame - watch state change live as you navigate, open popups, and trigger animations. It replaces the need for debug Text objects reading `CurrentScreen()` or `LayerState()` by hand.
 
@@ -1356,13 +1462,13 @@ The object-type name (`UIDirector`) comes from your project's object name.
 |---|---|---|
 | `_actTrackLayer` | `name, role, isModal, manageCollisions` | Setup layer (advanced). `role` = `"normal"`/`"popup"`/`"tooltip"` |
 | `_actUntrackLayer` | `name` | Untrack (one) |
-| `_actUntrackAllLayers` | — | Untrack (blank) |
+| `_actUntrackAllLayers` | none | Untrack (blank) |
 | `_actFocusLayer` | `name` | Go to screen (Push) |
 | `_actReplaceScreen` | `name` | Go to screen (Replace) |
 | `_actPopFocusToLayer` | `name` | Go to screen (Return to) |
 | `_actNavigateToScreenWithData` | `name, key, value` | Go to screen with data |
-| `_actPopFocusStack` | — | Go back |
-| `_actNavigateBackToRoot` | — | Go to first screen |
+| `_actPopFocusStack` | none | Go back |
+| `_actNavigateBackToRoot` | none | Go to first screen |
 | `_actSetLayerState` | `name, state` | Set layer state. `state` = `"visible"`/`"hidden"`/`"disabled"` |
 | `_actSetLayerInteractable` | `name, enabled` | Set input enabled |
 | `_actSetLayerAnimation` | `name, type, durationMs, easing, mirrorOnBack` | Set animation. `type`/`easing` are strings |
@@ -1372,11 +1478,11 @@ The object-type name (`UIDirector`) comes from your project's object name.
 | `_actSetLayerCollisions` | `name, enabled` | Sync collisions |
 | `_actShowPopup` / `_actHidePopup` | `name` | Popup: Show / Hide |
 | `_actShowPopupFor` | `name, durationMs` | Popup: Show timed |
-| `_actCloseAllPopups` | — | Popup: Hide all |
+| `_actCloseAllPopups` | none | Popup: Hide all |
 | `_actShowTooltip` / `_actHideTooltip` | `name` | Tooltip: Show / Hide |
-| `_actHideActiveTooltip` | — | Tooltip: Hide active |
+| `_actHideActiveTooltip` | none | Tooltip: Hide active |
 | `_actCompleteTransition` | `name` | Finish animation on one |
-| `_actSkipAllAnimations` | — | Finish animation on all |
+| `_actSkipAllAnimations` | none | Finish animation on all |
 
 ### Complete script example
 
@@ -1466,13 +1572,127 @@ Event: <companion> On back requested
 
 ---
 
-## 20. Tips and Common Mistakes
+## 20. Working Alongside Other Behaviors
+
+Slide and scale transitions move the **objects** on a layer, not the layer itself. That matters because C3 behaviors also write object positions, and two systems writing one position is a fight nobody wins. UIDirector resolves this automatically, and understanding the rules saves a lot of confusion.
+
+### The three outcomes
+
+Every object on a transitioning layer ends up in one of three buckets. Turn on **Debug Mode** and the console names them for you.
+
+| Outcome | Which objects | What happens |
+|---|---|---|
+| **Animated** | Anything with no competing behavior | Slides or scales with the layer, settles on its authored position and size |
+| **Suspended, then animated** | Objects whose behavior owns their position (Anchor, Virtual Cursor style) | The behavior is switched off for the duration, the object animates normally, then the behavior is handed control back |
+| **Left to its behavior** | Physics bodies, and position owners that cannot be switched off | Never touched by the transition |
+
+```text
+[UIDirector]   13 of 13 instance(s) animated
+[UIDirector]   2 position-owning behaviour(s) suspended for the transition: Anchor
+[UIDirector]   1 of 2 instance(s) animated, left to their behaviour: Ball (Physics)
+```
+
+### Position owners and the `_ownsPosition` contract
+
+A behavior that writes its host's position every tick **owns** that position. Left running during a transition it undoes each frame of the animation, and the object either refuses to move or gets dragged against whatever bound the behavior enforces.
+
+UIDirector recognises an owner two ways:
+
+- **By contract.** Any behavior instance exposing `_ownsPosition = true` is an owner. This is the rename-proof route and works for any third-party addon.
+- **By name**, for known ones (`Anchor`, `Virtual Cursor`).
+
+If the behavior also exposes `_setPositionOwnership(owns)`, UIDirector calls that instead of writing the flag, so any logic the behavior needs to run on a handover is not skipped.
+
+```js
+// In a companion behavior's runtime instance.js
+constructor() {
+  super();
+  this._ownsPosition = true;   // "I write my host's position; ask before moving it"
+}
+
+_setPositionOwnership(owns) {   // optional, but preferred over a raw flag write
+  this._ownsPosition = !!owns;
+}
+
+_tick() {
+  if (!this._ownsPosition) return;   // stand down while someone else animates the object
+  // ... normal per-tick positioning ...
+}
+```
+
+The gate in `_tick()` is the part that matters. A flag without it changes nothing, and UIDirector will report the object as *cannot be suspended* and skip animating it rather than risk a fight.
+
+### Physics is never animated
+
+A Physics body's position is authoritative; writing `x`/`y` underneath the solver injects phantom velocity. Physics objects are always left alone, and named in the log so you know why they did not move.
+
+### Objects moved by something else mid-transition
+
+If anything moves an object while a transition is running (an event sheet, a spring behavior, another addon), UIDirector notices, hands that object over, and puts it back on its baseline first so no fragment of the animation is left stranded on it.
+
+```text
+[UIDirector] Released from the animation, moved by something else:
+             UI_Card (Tween_effects, put back, moved by 12.00,0.00px)
+```
+
+Sub-pixel differences are ignored, so pixel rounding and float noise do not trigger a handover.
+
+> **Tip:** if a spring or tween behavior of yours is meant to animate *with* the layer rather than instead of it, give it the `_ownsPosition` contract above. UIDirector will then suspend it for the transition and the object slides and scales along with everything else.
+
+### Per-object animations (FlourishCue and friends)
+
+A behavior exposing `_playOpen` / `_playClose` animates its own host. Those objects are excluded from the layer sweep entirely, because they are already being driven, and UIDirector waits for all of them before firing **On layer opened** / **On layer closed**. Suspended position owners stay suspended until those finish too, so an anchored panel that also pops in never has Anchor switched back on halfway through its own animation.
+
+---
+
+## 21. Anchored Objects
+
+C3's **Anchor** behavior repositions its object from the viewport every tick, which puts it in direct conflict with a slide or scale. The **Anchored Objects** property decides who wins.
+
+| Setting | Behavior | Use when |
+|---|---|---|
+| **Move with layer** (default) | Anchor is suspended for the transition, the object animates with the layer, then Anchor is handed back and re-homes it | You want the whole UI to slide or scale as one piece |
+| **Stay in place** | Anchor keeps the object pinned; only the objects attached to it animate | You want an anchored bar, frame, or HUD edge to stay fixed while its contents move |
+
+### Anchored parents and their children
+
+The common layout is an anchor object with UI parented to it: a corner anchor holding a trash button, a bottom bar holding ability buttons. Both settings keep the hierarchy intact.
+
+```text
+UI_AnchorBottomLeft   (Anchor: bottom-left)
+  └─ UI_TrashButton   (scene-graph child)
+UI_AnchorBottomCentre (Anchor: bottom-centre)
+  ├─ UI_AbilityButton
+  └─ UI_AbilityButton
+```
+
+With **Move with layer**, the anchor and its children travel together and land back on their anchored position. With **Stay in place**, the anchors hold and the children animate against their parent's live position, so the children can slide in underneath a fixed bar.
+
+```text
+Event: On start of layout
+  Action: UIDirector → Setup layer with transition "HUD" as Screen with Slide Up, 250 ms, Ease Out, mirror on back False
+  Action: UIDirector → Go to screen "HUD" (Push)
+  // With Anchored Objects = Stay in place, the anchored bars never move
+  // and the buttons parented to them slide up into position.
+```
+
+> **Gotcha:** an object cannot be both pinned by Anchor and animated by a transition. They both write its position, so it does one or the other. If an anchored object refuses to animate, check this property before anything else.
+
+---
+
+## 22. Tips and Common Mistakes
 
 **Layers must be inside the container group** (or anywhere in the layout if the container is blank). A layer at the wrong level won't be found - check the layer panel.
 
 **Layer names are case-sensitive.** `"Main Menu"` and `"main menu"` are different layers.
 
-**Don't skip registration.** Every layer must be set up with `Setup layer` (or `Setup layer (advanced)`) before any other action targets it. Use **Layer is tracked** to guard if unsure.
+**Don't skip registration.** Every layer must be set up with `Setup layer`, `Setup layer (advanced)`, or `Setup layer with transition` before any other action targets it. Use **Layer is tracked** to guard if unsure.
+
+**`Return to` needs history.** `Go to screen` in `Return to` mode only unwinds *back* to a screen already in the focus stack. On start of layout the history is empty, so it correctly does nothing - use `Push` to show a screen for the first time. UIDirector warns in the console if you ask it to return to a screen that was never visited.
+
+**An object cannot be anchored and animated at once.** Anchor writes its object's position every tick, so a slide or scale can only move it if Anchor stands down. That is what the **Anchored Objects** property chooses (§21). If an anchored object refuses to animate, look there first.
+
+**A behavior that moves an object needs the `_ownsPosition` contract to animate with the layer.** Without it UIDirector detects the fight, hands the object over, and puts it back on its baseline - safe, but the object will not travel with the transition. See §20.
 
 **`Set layer state` vs `Go to screen`.** Use `Go to screen` for navigation (it manages history). Use `Set layer state` only to change visibility without touching the focus stack - e.g. a HUD that sits alongside screens.
 

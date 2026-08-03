@@ -12,7 +12,7 @@ export const config = {
       name: "Mode",
       desc: "Show = open the popup. Hide = close it. Show timed = open then auto-dismiss after Duration. Hide all = close every open popup.",
       type: "combo",
-      initialValue: "Show",
+      initialValue: "show",
       items: [
         { show: "Show" },
         { hide: "Hide" },

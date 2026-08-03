@@ -9,7 +9,9 @@ export const config = {
   params: [],
 };
 
-export const expose = false;
+// Exposed on the instance so companion addons (e.g. UIForge) can drive back-
+// navigation through this public action instead of a private method. Keep true.
+export const expose = true;
 
 export default function () {
   this._actPopFocusStack();

@@ -1,16 +1,38 @@
 <img src="./src/icon.svg" width="100" /><br>
 # UIDirector
 <i>Layer-based UI manager with focus stack, popup system, animations, modal control, and collision management. Track any layer as a named screen, popup, or tooltip - then open, close, and navigate between them with simple actions.</i> <br>
-### Version 1.2.0.0
+### Version 1.3.0.0
 
-[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-1.2.0.0.c3addon/salmanshh_uidirector-1.2.0.0.c3addon)
+[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](https://github.com/SalmanShhh/C3Addon_UIDirector/releases/download/salmanshh_uidirector-1.3.0.0.c3addon/salmanshh_uidirector-1.3.0.0.c3addon)
 <br>
 <sub> [See all releases](https://github.com/SalmanShhh/C3Addon_UIDirector/releases) </sub> <br>
 
-#### What's New in 1.2.0.0
-**Changed:**
-update compatibility layer with other UI addons.
+#### What's New in 1.3.0.0
+**Added:**
+- Setup layer with transition action: register a layer and set its animation type, duration, easing and mirror-on-back in one step.
+- Anchored Objects plugin property: choose whether Anchor-behavior objects move with the layer or stay in place during slide/scale (defaults to "Stay in place").
+- Position-ownership handover: behaviors that drive their own position (Virtual Cursor, or any addon setting _ownsPosition) are suspended for the transition and restored after; Physics is never touched.
+- Watchdog for companion per-object animations (_playOpen/_playClose) that never report completion, so a transition can't hang forever.
+- Savegame settle pass on afterload: instance transforms, layer opacity and collisions left mid-transition by a save are restored once instances exist.
+- One-shot warnings for common setup mistakes: untracked layer, wrong role for Go to screen, "Return to" with no history, slide/scale with nothing to animate.
+- version banner logged on load in Debug Mode.
 
+**Changed:**
+- Slide and scale now transform the objects on the layer (hierarchy children included, parent-first) instead of the layer itself.
+- Fade scales each sublayer's own opacity instead of overwriting the group layer's.
+- Property values are derived from the declaration list in config.caw.js instead of hardcoded indices, so adding or regrouping a property can't shift them.
+- GoBack, CanGoBack, LastChangedLayer and LastChangedState are now exposed on the instance for companion addons (UIForge).
+- Overshoot easings (Back Out, Elastic Out) fall back to Quartic Out for opacity so fades don't finish early and look frozen.
+- Editor instance no longer tries to grey out Dim Opacity; its description states it only applies when Dim Layer is set.
+- Shortened the Anchored Objects dropdown labels to "Move with layer" / "Stay in place".
+
+**Fixed:**
+- Slide did nothing on parallax 0,0 UI layers (it wrote layer.scrollX/scrollY, which C3 derives from the layout) and scale was a silent no-op (ILayer has no scale property).
+- GROUP rows were assumed to occupy a value slot, shifting every property after a group header: duration read the easing index (0, instant) and Debug Mode read past the end.
+- Combo params shipped capitalized initial values ("Screen", "Push", "Show") that matched no item key.
+- Editor instance called SetPropertyEnabled/GetPropertyValue, which don't exist on the base class.
+- Anchored objects fought slide/scale transitions instead of being held or moved deliberately.
+- External movement mid-transition (Anchor re-homing, window resize) is now reconciled per frame instead of snapping or being overwritten.
 
 <sub>[View full changelog](#changelog)</sub>
 
@@ -52,9 +74,10 @@ npm run dev
 | Default Animation | The default transition animation played when showing or hiding a layer. Can be overridden per-layer with the Set animation action. | combo |
 | Default Duration (ms) | How long the default transition animation takes, in milliseconds. Example: 200 = a quick 0.2 second fade. | integer |
 | Default Easing | The easing curve applied to the default animation. EaseOut feels snappy and responsive; EaseInOut feels smooth. | combo |
+| Anchored Objects | How slide and scale transitions treat objects with the Anchor behavior. "Move with layer" slides/scales them along with everything else; "Stay in place" keeps them where they are and animates only the objects attached to them. | combo |
 | Modal / Dim | Modal dim layer settings. | group |
 | Dim Layer | Optional. The name of a layer inside your UI container to use as a dim/scrim overlay. UIDirector will show this layer at the set opacity whenever a modal screen or popup is active, and hide it when none are. Leave blank to disable. | text |
-| Dim Opacity | The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent). | percent |
+| Dim Opacity | The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent). Only applies when Dim Layer is set; ignored otherwise. | percent |
 | Behavior | Global behavior settings. | group |
 | Persist Across Layouts | If enabled, UIDirector remembers tracked layers and their states when the layout changes. Layer references are re-resolved on the new layout. | check |
 | Debug Mode | If enabled, UIDirector logs all operations to the browser console (F12 -> Console). Useful during development - turn off before release. | check |
@@ -79,6 +102,7 @@ npm run dev
 | Tooltip | Shows or hides a tooltip. Only one tooltip is visible at a time — showing a new one hides the previous. Hide active hides whichever tooltip is currently showing. | Mode             *(combo)* <br>Layer name             *(string)* <br> |
 | Setup layer | Registers a layer with UIDirector as a screen, popup, or tooltip with sensible defaults. Call once at the start for each UI layer you want to manage. | Layer name             *(string)* <br>Role             *(combo)* <br> |
 | Setup layer (advanced) | Registers a layer with full control over modal blocking and collision syncing. Use when the defaults from Setup layer are not what you want. | Layer name             *(string)* <br>Role             *(combo)* <br>Modal (blocks others)             *(boolean)* <br>Sync collisions             *(boolean)* <br> |
+| Setup layer with transition | Registers a layer and gives it its own open/close animation in one step. Any option left as Use plugin default follows the matching Transitions property. | Layer name             *(string)* <br>Role             *(combo)* <br>Animation type             *(combo)* <br>Duration (ms)             *(number)* <br>Easing             *(combo)* <br>Mirror on back             *(boolean)* <br> |
 | Untrack | Stops UIDirector from managing a layer. Leave the name blank to untrack everything and clear all stacks. | Layer name             *(string)* <br> |
 | Finish animation | Instantly completes a layer's running transition (and any per-object animations). Leave the name blank to finish every running animation at once. Use to skip transitions on a fast-forward or skip button. | Layer name             *(string)* <br> |
 
@@ -136,6 +160,35 @@ npm run dev
 
 ---
 ## Changelog
+
+### Version 1.3.0.0
+
+**Added:**
+- Setup layer with transition action: register a layer and set its animation type, duration, easing and mirror-on-back in one step.
+- Anchored Objects plugin property: choose whether Anchor-behavior objects move with the layer or stay in place during slide/scale (defaults to "Stay in place").
+- Position-ownership handover: behaviors that drive their own position (Virtual Cursor, or any addon setting _ownsPosition) are suspended for the transition and restored after; Physics is never touched.
+- Watchdog for companion per-object animations (_playOpen/_playClose) that never report completion, so a transition can't hang forever.
+- Savegame settle pass on afterload: instance transforms, layer opacity and collisions left mid-transition by a save are restored once instances exist.
+- One-shot warnings for common setup mistakes: untracked layer, wrong role for Go to screen, "Return to" with no history, slide/scale with nothing to animate.
+- version banner logged on load in Debug Mode.
+
+**Changed:**
+- Slide and scale now transform the objects on the layer (hierarchy children included, parent-first) instead of the layer itself.
+- Fade scales each sublayer's own opacity instead of overwriting the group layer's.
+- Property values are derived from the declaration list in config.caw.js instead of hardcoded indices, so adding or regrouping a property can't shift them.
+- GoBack, CanGoBack, LastChangedLayer and LastChangedState are now exposed on the instance for companion addons (UIForge).
+- Overshoot easings (Back Out, Elastic Out) fall back to Quartic Out for opacity so fades don't finish early and look frozen.
+- Editor instance no longer tries to grey out Dim Opacity; its description states it only applies when Dim Layer is set.
+- Shortened the Anchored Objects dropdown labels to "Move with layer" / "Stay in place".
+
+**Fixed:**
+- Slide did nothing on parallax 0,0 UI layers (it wrote layer.scrollX/scrollY, which C3 derives from the layout) and scale was a silent no-op (ILayer has no scale property).
+- GROUP rows were assumed to occupy a value slot, shifting every property after a group header: duration read the easing index (0, instant) and Debug Mode read past the end.
+- Combo params shipped capitalized initial values ("Screen", "Push", "Show") that matched no item key.
+- Editor instance called SetPropertyEnabled/GetPropertyValue, which don't exist on the base class.
+- Anchored objects fought slide/scale transitions instead of being held or moved deliberately.
+- External movement mid-transition (Anchor re-homing, window resize) is now reconciled per frame instead of snapping or being overwritten.
+---
 
 ### Version 1.2.0.0
 

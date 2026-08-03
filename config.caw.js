@@ -86,15 +86,14 @@ export const info = {
 };
 
 // Properties - declaration order is critical!
-// GROUP properties occupy index slots but have no value.
-// _getInitProperties() returns them as an array by index:
-// 0: uiContainerLayer
-// 1: GROUP "Transitions" (no value)
-// 2: defaultAnimType  3: defaultAnimDuration  4: defaultAnimEasing
-// 5: GROUP "Modal / Dim" (no value)
-// 6: dimLayer  7: dimOpacity
-// 8: GROUP "Behavior" (no value)
-// 9: persistAcrossLayouts  10: debugMode
+// GROUP rows are layout-only: they carry no value, so they do NOT occupy a slot in the array
+// returned by _getInitProperties(). The value indices are therefore:
+//   0: uiContainerLayer
+//   1: defaultAnimType  2: defaultAnimDuration  3: defaultAnimEasing  4: anchorMode
+//   5: dimLayer         6: dimOpacity
+//   7: persistAcrossLayouts  8: debugMode
+// src/runtime/instance.js derives this mapping from the list below rather than hardcoding the
+// indices, so adding, removing or regrouping a property here cannot silently shift the values.
 export const properties = [
   {
     type: PROPERTY_TYPE.TEXT,
@@ -159,6 +158,19 @@ export const properties = [
     },
   },
   {
+    type: PROPERTY_TYPE.COMBO,
+    id: "anchorMode",
+    name: "Anchored Objects",
+    desc: "How slide and scale transitions treat objects with the Anchor behavior. \"Move with layer\" slides/scales them along with everything else; \"Stay in place\" keeps them where they are and animates only the objects attached to them.",
+    options: {
+      initialValue: "hold",
+      items: [
+        { animate: "Move with layer" },
+        { hold: "Stay in place" },
+      ],
+    },
+  },
+  {
     type: PROPERTY_TYPE.GROUP,
     id: "groupModalDim",
     name: "Modal / Dim",
@@ -176,7 +188,7 @@ export const properties = [
     type: PROPERTY_TYPE.PERCENT,
     id: "dimOpacity",
     name: "Dim Opacity",
-    desc: "The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent).",
+    desc: "The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent). Only applies when Dim Layer is set; ignored otherwise.",
     options: { initialValue: 0.5 },
   },
   {

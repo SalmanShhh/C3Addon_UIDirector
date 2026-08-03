@@ -58,6 +58,14 @@
               "bounceOut": "Bounce Out"
             }
           },
+          "anchorMode": {
+            "name": "Anchored Objects",
+            "desc": "How slide and scale transitions treat objects with the Anchor behavior. \"Move with layer\" slides/scales them along with everything else; \"Stay in place\" keeps them where they are and animates only the objects attached to them.",
+            "items": {
+              "animate": "Move with layer",
+              "hold": "Stay in place"
+            }
+          },
           "groupModalDim": {
             "name": "Modal / Dim",
             "desc": "Modal dim layer settings."
@@ -68,7 +76,7 @@
           },
           "dimOpacity": {
             "name": "Dim Opacity",
-            "desc": "The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent)."
+            "desc": "The opacity of the dim layer when it is active (0 = invisible, 1 = fully opaque). Default is 0.5 (50% semi-transparent). Only applies when Dim Layer is set; ignored otherwise."
           },
           "groupBehavior": {
             "name": "Behavior",
@@ -378,6 +386,67 @@
               "syncCollisions": {
                 "name": "Sync collisions",
                 "desc": "True = automatically disable object collisions on this layer while it is hidden or disabled, and restore them when it shows."
+              }
+            }
+          },
+          "SetupLayerWithTransition": {
+            "list-name": "Setup layer with transition",
+            "display-text": "Setup {0} as {1} with {2}, {3} ms, {4}, mirror on back {5}",
+            "description": "Registers a layer and gives it its own open/close animation in one step. Any option left as Use plugin default follows the matching Transitions property.",
+            "params": {
+              "layerName": {
+                "name": "Layer name",
+                "desc": "The name of the sublayer inside your UI container group layer."
+              },
+              "role": {
+                "name": "Role",
+                "desc": "Screen = full-page navigation (pushed/popped on the focus stack). Popup = overlay above the current screen. Tooltip = single transient hint, off the stacks.",
+                "items": {
+                  "screen": "Screen",
+                  "popup": "Popup",
+                  "tooltip": "Tooltip"
+                }
+              },
+              "type": {
+                "name": "Animation type",
+                "desc": "The animation this layer plays when it opens or closes.",
+                "items": {
+                  "useDefault": "Use plugin default",
+                  "fade": "Fade",
+                  "slideLeft": "Slide Left",
+                  "slideRight": "Slide Right",
+                  "slideUp": "Slide Up",
+                  "slideDown": "Slide Down",
+                  "none": "None (instant)",
+                  "scaleDown": "Scale Down",
+                  "scaleUp": "Scale Up"
+                }
+              },
+              "durationMs": {
+                "name": "Duration (ms)",
+                "desc": "How long the animation takes, in milliseconds. Use -1 for the plugin default; 0 is instant."
+              },
+              "easing": {
+                "name": "Easing",
+                "desc": "The easing curve applied to the animation.",
+                "items": {
+                  "useDefault": "Use plugin default",
+                  "linear": "Linear",
+                  "easeIn": "Ease In",
+                  "easeOut": "Ease Out",
+                  "easeInOut": "Ease In Out",
+                  "quadraticOut": "Quadratic Out",
+                  "quarticOut": "Quartic Out",
+                  "exponentialOut": "Exponential Out",
+                  "circularOut": "Circular Out",
+                  "backOut": "Back Out",
+                  "elasticOut": "Elastic Out",
+                  "bounceOut": "Bounce Out"
+                }
+              },
+              "mirrorOnBack": {
+                "name": "Mirror on back",
+                "desc": "When true, the closing animation plays in the opposite direction on back-navigation (slide/scale reverse). Ignored for fade and none."
               }
             }
           },

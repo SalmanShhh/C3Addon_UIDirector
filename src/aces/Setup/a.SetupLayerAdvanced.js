@@ -19,7 +19,7 @@ export const config = {
       name: "Role",
       desc: "Screen = full-page navigation. Popup = overlay above the current screen. Tooltip = single transient hint, off the stacks.",
       type: "combo",
-      initialValue: "Screen",
+      initialValue: "screen",
       items: [
         { screen: "Screen" },
         { popup: "Popup" },

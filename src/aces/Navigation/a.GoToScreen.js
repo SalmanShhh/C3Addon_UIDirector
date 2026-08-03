@@ -19,7 +19,7 @@ export const config = {
       name: "Mode",
       desc: "Push = remember the current screen (default navigation). Replace = swap the current screen without adding to history. Return to = pop back to this screen if it is in history.",
       type: "combo",
-      initialValue: "Push",
+      initialValue: "push",
       items: [
         { push: "Push (remember current)" },
         { replace: "Replace (don't remember)" },
