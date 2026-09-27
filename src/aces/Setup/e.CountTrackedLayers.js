@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns the total number of layers currently tracked by UIDirector. Use with GetTrackedLayerByIndex in a Repeat loop to iterate all tracked layers.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [],
 };
 

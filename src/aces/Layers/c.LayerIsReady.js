@@ -6,7 +6,7 @@ export const config = {
   isTrigger: false,
   isInvertible: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

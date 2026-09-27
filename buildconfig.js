@@ -19,6 +19,11 @@ export const disableWarnings = false;
 // Options: "error" (fail build), "warning" (show warning but continue), "skip" (disable check)
 export const terserValidation = "error";
 
+// DOM plugin _tick override validation (checks the override calls super._tick()).
+// Only runs for DOM plugins; UIDirector is an object plugin, so this is a no-op here.
+// Options: "error" (fail build), "warning" (show warning but continue), "skip" (disable check)
+export const domTickValidation = "error";
+
 export const publishConfig = {
   addonUrl: "", // e.g., "https://www.construct.net/en/make-games/addons/111/my-addon"
   itchioPage: "", // Format: "username/page-id" (taken from https://username.itch.io/page-id)

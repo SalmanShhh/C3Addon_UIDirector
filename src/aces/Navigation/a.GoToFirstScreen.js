@@ -5,7 +5,7 @@ export const config = {
     "Clears the navigation history and returns to the root (first) screen. Use for a 'Main Menu' shortcut from deep inside nested menus.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [],
 };
 

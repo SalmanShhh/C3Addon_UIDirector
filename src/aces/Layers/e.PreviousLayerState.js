@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns the state a layer was in before its last change, or empty. Use to restore a layer after a temporary change.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

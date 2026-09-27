@@ -5,7 +5,7 @@ export const config = {
     "Stores a custom key/value on a tracked layer. Read it back with the LayerData expression. Use to attach context like a selected item ID to a screen.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

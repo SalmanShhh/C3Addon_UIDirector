@@ -5,7 +5,7 @@ export const config = {
     "Triggers when a layer starts its closing animation. Good for fading out music or starting a parallel exit effect.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

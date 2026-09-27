@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns a layer's animation direction: 'opening', 'closing', or empty. Use to play different sounds based on whether a screen is coming in or going out.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

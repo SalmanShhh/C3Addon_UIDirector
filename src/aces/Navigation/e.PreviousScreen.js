@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns the name of the screen directly below the active one in the stack, or empty. Use for breadcrumbs or 'Back to X' button labels.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [],
 };
 

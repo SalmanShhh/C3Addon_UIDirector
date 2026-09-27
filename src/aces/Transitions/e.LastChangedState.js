@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns the new state of the most recently changed layer. Use inside state-changed triggers to react differently to 'hidden' vs 'visible'. Polled by companion addons.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [],
 };
 

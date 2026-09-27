@@ -5,7 +5,7 @@ export const config = {
     "Toggles a layer's interactivity (isInteractive) without changing its visuals. Use to temporarily block buttons during an animation or loading.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

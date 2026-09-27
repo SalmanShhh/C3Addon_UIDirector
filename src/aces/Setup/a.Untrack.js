@@ -5,7 +5,7 @@ export const config = {
     "Stops UIDirector from managing a layer. Leave the name blank to untrack everything and clear all stacks.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

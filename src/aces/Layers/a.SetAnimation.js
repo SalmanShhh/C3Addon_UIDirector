@@ -5,7 +5,7 @@ export const config = {
     "Overrides the open/close animation for a single layer: type, duration, easing, and whether back-navigation mirrors the direction. Configure once; it plays automatically on every show and hide.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

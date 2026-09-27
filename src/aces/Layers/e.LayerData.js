@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns a stored custom value from a layer by key, or empty. Use to read data set with Set data or Go to screen with data.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

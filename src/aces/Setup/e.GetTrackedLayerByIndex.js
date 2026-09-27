@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns the name of a tracked layer at the given zero-based index. Use with CountTrackedLayers in a Repeat loop to iterate all tracked layers.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "index",

@@ -5,7 +5,7 @@ export const config = {
     "Triggers after a specific layer finishes changing state. Use LayerState / PreviousLayerState inside. Good for logic that depends on the final state.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

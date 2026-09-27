@@ -5,7 +5,7 @@ export const config = {
     "Shows or hides a tooltip. Only one tooltip is visible at a time — showing a new one hides the previous. Hide active hides whichever tooltip is currently showing.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "mode",

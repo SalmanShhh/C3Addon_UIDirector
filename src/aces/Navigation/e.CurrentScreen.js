@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns the name of the active screen, or empty if none. Use for screen-specific logic or debug displays.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [],
 };
 

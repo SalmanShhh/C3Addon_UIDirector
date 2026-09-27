@@ -5,7 +5,7 @@ export const config = {
     "Enables or disables automatic collision syncing on a layer: when on, object collisions are disabled while the layer is hidden/disabled and restored when it shows. Use to stop invisible UI from blocking game clicks.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

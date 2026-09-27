@@ -5,7 +5,7 @@ export const config = {
     "Changes a layer directly to visible, hidden, or disabled, playing the layer's animation. Use to show or hide a HUD element or grey out a panel without touching the focus stack.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

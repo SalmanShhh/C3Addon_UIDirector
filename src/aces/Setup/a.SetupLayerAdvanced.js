@@ -5,7 +5,7 @@ export const config = {
     "Registers a layer with full control over modal blocking and collision syncing. Use when the defaults from Setup layer are not what you want.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

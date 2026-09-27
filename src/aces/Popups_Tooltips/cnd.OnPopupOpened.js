@@ -5,7 +5,7 @@ export const config = {
     "Triggers when a popup becomes visible. Use TopPopup inside. Good for playing a sound or dimming the background.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

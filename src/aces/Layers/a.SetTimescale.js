@@ -5,7 +5,7 @@ export const config = {
     "Controls playback speed tied to a layer. Objects timescale changes the speed of every object on the layer now (1 = normal, 0 = frozen, -1 = no change). Game-while-open is stored and auto-applied to the whole game when this layer opens, then restored on close (-1 = off). Pass 1 / 1 to clear. Tip: objects 1 + game-while-open 0 keeps the menu animated while the game freezes behind it.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

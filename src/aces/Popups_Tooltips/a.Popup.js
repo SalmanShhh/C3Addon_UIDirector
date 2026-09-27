@@ -5,7 +5,7 @@ export const config = {
     "Shows or hides a popup overlay above the current screen. Show timed auto-dismisses after the given milliseconds; Hide all closes every open popup. Duration is only used by Show timed.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "mode",

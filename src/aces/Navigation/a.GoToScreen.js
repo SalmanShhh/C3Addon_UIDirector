@@ -5,7 +5,7 @@ export const config = {
     "Navigates to a screen. Push remembers the current screen so the player can go back; Replace swaps without remembering; Return to unwinds the history back to this screen.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

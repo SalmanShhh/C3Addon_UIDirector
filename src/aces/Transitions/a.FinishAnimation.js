@@ -5,7 +5,7 @@ export const config = {
     "Instantly completes a layer's running transition (and any per-object animations). Leave the name blank to finish every running animation at once. Use to skip transitions on a fast-forward or skip button.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

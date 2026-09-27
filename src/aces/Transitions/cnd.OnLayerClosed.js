@@ -5,7 +5,7 @@ export const config = {
     "Triggers after a layer finishes its closing animation. A safe point to clean up or stop timers once the layer is fully gone.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

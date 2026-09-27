@@ -5,7 +5,7 @@ export const config = {
     "Triggers when a popup hides. Use to check the player's choice after a confirmation dialog.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

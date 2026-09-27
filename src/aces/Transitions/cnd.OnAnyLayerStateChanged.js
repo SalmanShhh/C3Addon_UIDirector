@@ -5,7 +5,7 @@ export const config = {
     "Triggers whenever any layer changes state. Use with LastChangedLayer and LastChangedState for global UI tracking. Companion addons poll these to follow the active screen.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [],
 };
 

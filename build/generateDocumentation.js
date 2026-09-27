@@ -2,6 +2,12 @@ import fs from "fs";
 import path from "path";
 import * as config from "../config.caw.js";
 import { publishConfig } from "../buildconfig.js";
+import {
+  readChangelog,
+  sortVersions,
+  entryFor,
+  renderMarkdown,
+} from "./changelog.js";
 import * as chalkUtils from "./chalkUtils.js";
 import fromConsole from "./fromConsole.js";
 import {
@@ -30,76 +36,15 @@ function getFileExtension(filename) {
   return filename.slice(((filename.lastIndexOf(".") - 1) >>> 0) + 2);
 }
 
-function formatChangelogEntry(versionData) {
-  const changes = [];
-
-  if (versionData.added) {
-    changes.push(`**Added:**`);
-    changes.push(versionData.added);
-    changes.push("");
-  }
-
-  if (versionData.changed) {
-    changes.push(`**Changed:**`);
-    changes.push(versionData.changed);
-    changes.push("");
-  }
-
-  if (versionData.fixed) {
-    changes.push(`**Fixed:**`);
-    changes.push(versionData.fixed);
-  }
-
-  return changes;
-}
-
 function getLatestChangelog(version) {
-  const changelogPath = path.join(__dirname, "CHANGELOG.json");
-  if (!fs.existsSync(changelogPath)) {
-    return null;
-  }
-
-  try {
-    const changelogContent = fs.readFileSync(changelogPath, "utf-8");
-    const changelog = JSON.parse(changelogContent);
-
-    if (!changelog[version]) {
-      return null;
-    }
-
-    const changes = formatChangelogEntry(changelog[version]);
-    return changes.length > 0 ? changes.join("\n") : null;
-  } catch (e) {
-    return null;
-  }
+  const entry = entryFor(readChangelog(), version);
+  return entry ? renderMarkdown([entry]) : null;
 }
 
 function getAllChangelogs() {
-  const changelogPath = path.join(__dirname, "CHANGELOG.json");
-  if (!fs.existsSync(changelogPath)) {
-    return null;
-  }
-
-  try {
-    const changelogContent = fs.readFileSync(changelogPath, "utf-8");
-    const changelog = JSON.parse(changelogContent);
-
-    // Sort versions in descending order (newest first)
-    const versions = Object.keys(changelog).sort((a, b) => {
-      const aParts = a.split(".").map(Number);
-      const bParts = b.split(".").map(Number);
-      for (let i = 0; i < 4; i++) {
-        if (aParts[i] !== bParts[i]) {
-          return bParts[i] - aParts[i];
-        }
-      }
-      return 0;
-    });
-
-    return { changelog, versions };
-  } catch (e) {
-    return null;
-  }
+  const changelog = readChangelog();
+  if (!changelog) return null;
+  return { changelog, versions: sortVersions(Object.keys(changelog)) };
 }
 
 const __dirname = path.resolve("../");
@@ -152,7 +97,7 @@ export default async function generateDocumentation() {
   readme.push(`### Version ${config.version}`);
   readme.push(``);
   readme.push(
-    `[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](${githubUrl}/releases/download/${addonFileName}/${addonFileName})`
+    `[<img src="https://placehold.co/200x50/4493f8/FFF?text=Download&font=montserrat" width="200"/>](${githubUrl}/releases/download/${addonFileName}/${addonFileName})`,
   );
   readme.push("<br>");
   readme.push(`<sub> [See all releases](${githubUrl}/releases) </sub> <br>`);
@@ -172,7 +117,7 @@ export default async function generateDocumentation() {
   readme.push(`<b><u>Author:</u></b> ${config.author} <br>`);
   if (publishConfig && publishConfig.addonUrl !== "") {
     readme.push(
-      `<b>[Construct Addon Page](${publishConfig.addonUrl})</b>  <br>`
+      `<b>[Construct Addon Page](${publishConfig.addonUrl})</b>  <br>`,
     );
   }
   if (
@@ -183,7 +128,7 @@ export default async function generateDocumentation() {
     // Split username/game-id to construct proper itch.io URL
     const [username, gameId] = publishConfig.itchioPage.split("/");
     readme.push(
-      `<b>[Itch.io Page](https://${username}.itch.io/${gameId})</b>  <br>`
+      `<b>[Itch.io Page](https://${username}.itch.io/${gameId})</b>  <br>`,
     );
   }
   if (
@@ -203,7 +148,7 @@ export default async function generateDocumentation() {
   }
   //add link to c3ide2-framework
   readme.push(
-    `<sub>Made using [CAW](https://marketplace.visualstudio.com/items?itemName=skymen.caw) </sub><br>`
+    `<sub>Made using [CAW](https://marketplace.visualstudio.com/items?itemName=skymen.caw) </sub><br>`,
   );
   readme.push(``);
 
@@ -249,7 +194,7 @@ export default async function generateDocumentation() {
     exampleFiles.forEach((file) => {
       const fileName = file.split(".")[0];
       let imageArr = images.filter((image) =>
-        image.split(".")[0].includes(fileName)
+        image.split(".")[0].includes(fileName),
       );
       if (imageArr.length > 0) {
         anyHasImages = true;
@@ -268,7 +213,7 @@ export default async function generateDocumentation() {
 
       //add images
       let imageArr = images.filter((image) =>
-        image.split(".")[0].includes(fileName)
+        image.split(".")[0].includes(fileName),
       );
       let imgString = "";
       imageArr.forEach((image) => {
@@ -279,8 +224,8 @@ export default async function generateDocumentation() {
           anyHasImages ? `| ${imgString} ` : ""
         }| ${fileName} | [<img src="https://placehold.co/120x30/4493f8/FFF?text=Download&font=montserrat" width="120"/>](${githubUrl}/raw/refs/heads/main/examples/${file.replace(
           / /g,
-          "%20"
-        )}) |`
+          "%20",
+        )}) |`,
       );
     });
   }
@@ -313,7 +258,7 @@ export default async function generateDocumentation() {
     }
 
     readme.push(
-      `| ${action.listName} | ${action.description} | ${paramString} |`
+      `| ${action.listName} | ${action.description} | ${paramString} |`,
     );
   });
   readme.push(``);
@@ -335,7 +280,7 @@ export default async function generateDocumentation() {
     }
 
     readme.push(
-      `| ${condition.listName} | ${condition.description} | ${paramString} |`
+      `| ${condition.listName} | ${condition.description} | ${paramString} |`,
     );
   });
   readme.push(``);
@@ -357,7 +302,7 @@ export default async function generateDocumentation() {
     }
 
     readme.push(
-      `| ${key} | ${expression.description} | ${expression.returnType} | ${paramString} | `
+      `| ${key} | ${expression.description} | ${expression.returnType} | ${paramString} | `,
     );
   });
   readme.push(``);
@@ -372,13 +317,11 @@ export default async function generateDocumentation() {
 
     allChangelogs.versions.forEach((version) => {
       const versionData = allChangelogs.changelog[version];
-      readme.push(`### Version ${version}`);
-      readme.push(``);
+      readme.push(`**${version}**`);
 
-      const formattedChanges = formatChangelogEntry(versionData);
-      formattedChanges.forEach((line) => readme.push(line));
+      const entry = entryFor(allChangelogs.changelog, version);
+      if (entry) readme.push(renderMarkdown([entry]));
 
-      readme.push(`---`);
       readme.push(``);
     });
   }

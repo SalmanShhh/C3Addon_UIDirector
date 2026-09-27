@@ -5,7 +5,7 @@ export const config = {
     "Sets whether a screen blocks input on all other screens while it is active. Use to make fullscreen menus modal.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

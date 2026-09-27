@@ -60,7 +60,7 @@ const commonSchema = {
   id: Joi.string().optional(),
   c2id: Joi.number().integer().optional(),
   highlight: Joi.boolean().default(false),
-  deprecated: Joi.boolean().default(false),
+  isDeprecated: Joi.boolean().default(false),
   listName: Joi.string().required(),
   displayText: Joi.string().required(),
   description: Joi.string().required().allow(""),
@@ -95,7 +95,7 @@ const expressionSchema = Joi.object({
   id: Joi.string().optional(),
   c2id: Joi.number().integer().optional(),
   highlight: Joi.boolean().default(false),
-  deprecated: Joi.boolean().default(false),
+  isDeprecated: Joi.boolean().default(false),
   returnType: Joi.string().required().valid("number", "string", "any"),
   isVariadicParameters: Joi.boolean().default(false),
   description: Joi.string().required().allow(""),
@@ -112,15 +112,20 @@ const propertySchema = Joi.object({
       "longtext",
       "check",
       "font",
-      "combo",
-      "color",
-      "object",
-      "group",
-      "link",
-      "info",
-      "projectfile"
+      "combo"
     )
-    .required(),
+    .required()
+    .when(Joi.ref("/addonType"), {
+      is: "plugin",
+      then: Joi.valid(
+        "color",
+        "object",
+        "projectfile",
+        "group",
+        "link",
+        "info"
+      ),
+    }),
 
   id: Joi.string().required(),
   name: Joi.string().required(),
@@ -139,6 +144,8 @@ const propertySchema = Joi.object({
         },
         { is: "check", then: Joi.boolean().required() },
         { is: "combo", then: Joi.string().required() },
+        // The editor requires a font family name for font properties.
+        { is: "font", then: Joi.string().required() },
         {
           is: "color",
           then: Joi.array()
@@ -149,6 +156,8 @@ const propertySchema = Joi.object({
       ],
       otherwise: Joi.any().forbidden(),
     }),
+    // Accepted by SDK.PluginProperty for every property type.
+    templatable: Joi.boolean().optional(),
   })
     .required()
     .when("type", {
@@ -225,16 +234,24 @@ const configSchema = Joi.object({
   website: Joi.string().required(),
   documentation: Joi.string().required(),
   description: Joi.string().required(),
-  hasDomside: Joi.boolean().required(),
+  hasDomside: Joi.boolean()
+    .required()
+    .when("type", {
+      is: "dom",
+      then: Joi.valid(true).messages({
+        "any.only": "hasDomside must be true when type is PLUGIN_TYPE.DOM",
+      }),
+    }),
   category: Joi.string()
     .required()
     .when("addonType", {
       is: "behavior",
-      then: Joi.string().valid("attributes", "general", "movements", "other"),
+      then: Joi.string().valid("3d", "attributes", "general", "movements", "other"),
       otherwise: Joi.string().valid(
         "3d",
         "data-and-storage",
         "form-controls",
+        "html-elements",
         "general",
         "input",
         "media",

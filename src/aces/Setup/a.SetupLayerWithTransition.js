@@ -6,7 +6,7 @@ export const config = {
     "follows the matching Transitions property.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

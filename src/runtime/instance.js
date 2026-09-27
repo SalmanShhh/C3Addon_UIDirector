@@ -40,8 +40,13 @@ const REBASE_EPSILON_PX = 0.01;
 const RELEASE_MIN_DEVIATION_PX = 0.5;
 
 // How long to wait for a companion addon's per-object animation to report completion before
-// assuming it never will. Generous: 10 seconds at 60fps, far longer than any UI transition.
-const MOTION_WATCHDOG_FRAMES = 600;
+// assuming it never will. Measured in unscaled UI time, so it is the same on any refresh rate.
+const MOTION_WATCHDOG_MS = 10000;
+
+// Passed as the second argument to _playOpen/_playClose. UI transitions run on unscaled time so a
+// screen that pauses the game (runtime timescale 0) still animates; companions that understand
+// this option do the same, and older ones simply ignore the extra argument.
+const MOTION_OPTIONS = Object.freeze({ unscaled: true });
 
 // Never animated: writing x/y even once corrupts state that cannot be recovered. Physics is the
 // only real member — its body position is authoritative and a write underneath the solver injects
@@ -89,7 +94,7 @@ export default function (parentClass) {
         defaultAnimType:      ANIM_TYPE_KEYS[raw.defaultAnimType] ?? "fade",
         defaultAnimDuration:  raw.defaultAnimDuration,
         defaultAnimEasing:    EASING_KEYS[raw.defaultAnimEasing] ?? "easeOut",
-        anchorMode:           ANCHOR_MODE_KEYS[raw.anchorMode] ?? "animate",
+        anchorMode:           ANCHOR_MODE_KEYS[raw.anchorMode] ?? "hold",
         dimLayer:             raw.dimLayer,
         dimOpacity:           raw.dimOpacity,
         persistAcrossLayouts: raw.persistAcrossLayouts,
@@ -112,6 +117,11 @@ export default function (parentClass) {
       this._dimLayerRef        = null;
       this._lastViewport       = null;
       this._pendingSettle      = null;
+      // Behaviour -> { kind, n }: how many in-flight transitions have a behaviour suspended, so
+      // nested layers transitioning together only hand control back when the LAST one finishes.
+      this._ownerSuspendCounts = new Map();
+      this._lastTickMs         = undefined;
+      this._sweepCache         = null;
     }
 
     // ─────────────────────────────────────────────────────────
@@ -794,33 +804,40 @@ export default function (parentClass) {
     // the duration instead, which leaves the host exactly where it is.
     _suspendPositionOwners(layerRef) {
       const holdAnchored = this._getProperty("anchorMode") === "hold";
+      const counts = this._ownerSuspendCounts;
       const suspended = [];
       const names = new Set();
 
       for (const inst of this._getAllInstancesOnLayer(layerRef)) {
         for (const [key, b] of this._behaviorsOf(inst)) {
-          // Cursor-style owners: they expose the contract flag, so ask them to stand down.
-          if (b._ownsPosition === true) {
-            this._setOwnerControl(b, false);
-            suspended.push({ b, kind: "ownership" });
-            names.add(b.behaviorType?.name ?? key);
-            continue;
+          let kind = counts.get(b)?.kind ?? null;   // already suspended by another transition: join it
+
+          if (!kind) {
+            // Position owners: the same test _captureInstanceTransforms uses to decide the instance
+            // may be animated, so anything animated as an owner is also actually suspended. An owner
+            // the project deliberately set to External (_ownsPosition === false) is left alone.
+            const name = b.behaviorType?.name;
+            const isOwner = b._ownsPosition === true ||
+              POSITION_OWNER_BEHAVIORS.has(key) || (name && POSITION_OWNER_BEHAVIORS.has(name));
+            if (isOwner && b.isEnabled !== false && b._ownsPosition !== false && this._canSuspendOwner(b)) {
+              this._setOwnerControl(b, false);
+              kind = "ownership";
+            } else if ((key === "Anchor" || name === "Anchor") && !holdAnchored && b.isEnabled === true) {
+              // Anchor re-asserts its instance's anchored position EVERY tick, not just on resize.
+              // Left running it undoes each frame of the animation and leaks a full slide distance
+              // into scene-graph children. Disabled for the duration; not in "hold" mode, where
+              // anchored instances are deliberately left to Anchor.
+              b.isEnabled = false;
+              kind = "enabled";
+            }
+            if (!kind) continue;
           }
 
-          // Anchor re-asserts its instance's anchored position EVERY tick, not just on resize.
-          // Left running it undoes each frame of the animation, so the anchored object never moves
-          // — and worse, the parent oscillating between "anchored home" and "animated position"
-          // leaks a full slide distance into its scene-graph children every frame, throwing them
-          // thousands of pixels off. Disabling it for the duration is the only way to stop that at
-          // source: pinning cannot help, because the behaviour writes outside our write phase.
-          //
-          // Not in "hold" mode, where anchored instances are deliberately left to Anchor.
-          const isAnchor = key === "Anchor" || b.behaviorType?.name === "Anchor";
-          if (isAnchor && !holdAnchored && b.isEnabled === true) {
-            b.isEnabled = false;
-            suspended.push({ b, kind: "enabled" });
-            names.add("Anchor");
-          }
+          const rec = counts.get(b) ?? { kind, n: 0 };
+          rec.n++;
+          counts.set(b, rec);
+          suspended.push({ b, kind, uid: inst.uid, key });
+          names.add(kind === "enabled" ? "Anchor" : (b.behaviorType?.name ?? key));
         }
       }
 
@@ -831,16 +848,17 @@ export default function (parentClass) {
     }
 
     _resumePositionOwners(entry) {
-      const suspended = entry.animSuspendedOwners;
+      const suspended = entry?.animSuspendedOwners;
       if (!suspended || suspended.length === 0) return;
-      for (const entryOrB of suspended) {
-        // Older entries were bare behaviour objects; tolerate both shapes.
-        const b = entryOrB.b ?? entryOrB;
-        const kind = entryOrB.kind ?? "ownership";
+      entry.animSuspendedOwners = null;
+      for (const { b, kind } of suspended) {
+        const rec = this._ownerSuspendCounts.get(b);
+        if (!rec) continue;
+        if (--rec.n > 0) continue;              // another transition still needs it suspended
+        this._ownerSuspendCounts.delete(b);
         if (kind === "enabled") b.isEnabled = true;
         else this._setOwnerControl(b, true);
       }
-      entry.animSuspendedOwners = null;
     }
 
     _originOf(base) {
@@ -884,6 +902,15 @@ export default function (parentClass) {
     // getOwnPropertyNames covers the non-enumerable case; the prototype chain is walked too since
     // named accessors are often defined there.
     _behaviorsOf(inst) {
+      const cache = this._sweepCache;
+      const hit = cache?.behaviors.get(inst);
+      if (hit) return hit;
+      const found = this._reflectBehaviors(inst);
+      cache?.behaviors.set(inst, found);
+      return found;
+    }
+
+    _reflectBehaviors(inst) {
       const behaviors = inst.behaviors;
       if (!behaviors) return [];
 
@@ -992,7 +1019,17 @@ export default function (parentClass) {
       if (typeof base.height === "number" && typeof inst.height === "number") inst.height = base.height;
     }
 
+    // A closing transition whose per-object animations outlast the layer tween defers resetting
+    // its objects until the layer has been hidden (see _completeAnim). Apply it now if pending.
+    _flushDeferredReset(entry) {
+      const type = entry?.animDeferredReset;
+      if (!type) return;
+      entry.animDeferredReset = null;
+      this._resetAnimProperties(entry, type);
+    }
+
     _unwindInstanceTransforms(entry) {
+      this._flushDeferredReset(entry);
       if (entry && entry.animBaseTransforms) this._restoreInstanceTransforms(entry);
       // A cursor left with ownership suspended would be frozen for good.
       this._resumePositionOwners(entry);
@@ -1195,18 +1232,22 @@ export default function (parentClass) {
       const isScale = effectiveType === "scaleDown" || effectiveType === "scaleUp";
       const isSlide = effectiveType.startsWith("slide");
 
+      // Objects and opacities must be back at rest before anything is captured from them.
+      this._flushDeferredReset(entry);
+
       // Capture the authored opacity of each target layer so _applyAnimValue can work in
-      // deltas and _resetAnimProperties can restore exactly. Skip re-capturing mid-flight:
-      // a fade interrupted at opacity 0.3 must not adopt 0.3 as its baseline, or repeated
-      // interruptions would ratchet the layer to invisible.
-      const previousOpacities = entry.animBaseOpacities;
+      // deltas and _resetAnimProperties can restore exactly. Captured fresh every time: an
+      // interrupted transition has already been completed (and its opacities restored) above,
+      // and reusing an older capture would overwrite opacity changes made by the project since.
       entry.animBaseOpacities = new Map();
       for (const l of this._getAnimTargetLayers(entry.ref)) {
-        entry.animBaseOpacities.set(l, previousOpacities?.get(l) ?? l.opacity);
+        entry.animBaseOpacities.set(l, l.opacity);
       }
 
       // Slide and scale transform instances, so they need each instance's starting position
       // and size. Only swept for those types — a fade should not pay for an instance scan.
+      // Pins from an earlier slide/scale must not carry into a fade.
+      entry.animPinned = null;
       entry.animBaseTransforms = isSlide || isScale ? this._captureInstanceTransforms(entry) : null;
       // Must happen before the first _applyAnimValue() below, so the clamp is already off on the
       // very first displaced frame. Only slide and scale move objects; a fade leaves positions
@@ -1246,6 +1287,9 @@ export default function (parentClass) {
 
       this._applyAnimValue(entry, effectiveType, from);
       this._setTicking(true);
+      // Starting from idle: the last recorded frame may be long ago (ticking can stay on while the
+      // motion watchdog waits), and that gap must not land in this transition's first frame.
+      if (this._animatingLayers.size === 0) this._lastTickMs = undefined;
       this._animatingLayers.add(entry.name);
       this._log(`Anim start: ${entry.name} ${dir} (${effectiveType}, ${config.duration}ms, ${config.easing})`);
       const opacityEasing = this._easingForType(effectiveType, config.easing);
@@ -1261,7 +1305,14 @@ export default function (parentClass) {
       if (entry.animOpacityEnabled) {
         this._applyLayerOpacityFraction(entry, entry.animOpacityTo);
       }
-      this._resetAnimProperties(entry, effectiveType);
+      // Closing with per-object animations still running: the layer stays visible until they
+      // finish, so resetting now would pop every object back into its open state on screen.
+      // Hold them at the closed pose; the barrier resets them once the layer is hidden.
+      if (entry.animDir === "closing" && entry.animMotionsPending > 0) {
+        entry.animDeferredReset = effectiveType;
+      } else {
+        this._resetAnimProperties(entry, effectiveType);
+      }
 
       // The layer's tween is done, but per-object animations may still be running; the barrier
       // resumes owners once those finish. Resuming here as well covers the no-motions case and
@@ -1379,7 +1430,33 @@ export default function (parentClass) {
     // iterable, so `for (const t of this.runtime.objects)` throws. Enumerate with
     // Object.values(). Families also appear in runtime.objects and report their members'
     // instances, so results are deduped to avoid handling an instance twice.
+    // One sweep per transition start: the transition wrappers open a cache scope so the several
+    // helpers that each need "every instance on this layer" (per-object animations, capture,
+    // owner suspension, collisions) and their behaviour lists share one pass over the project.
+    _withSweepCache(fn) {
+      if (this._sweepCache) return fn();
+      this._sweepCache = { instances: new Map(), behaviors: new Map() };
+      try { return fn(); } finally { this._sweepCache = null; }
+    }
+
+    // _playOpen / _playClose fire their addon's event-sheet triggers synchronously, and those can
+    // create or destroy instances on the layer. The sweep taken before them is then stale, so drop
+    // it and let the capture that follows sweep again. Only paid when per-object animations exist.
+    _invalidateSweepAfterMotions(motions) {
+      if (motions.length > 0 && this._sweepCache) {
+        this._sweepCache = { instances: new Map(), behaviors: new Map() };
+      }
+    }
+
     _getAllInstancesOnLayer(layerRef) {
+      const cache = this._sweepCache;
+      if (cache?.instances.has(layerRef)) return cache.instances.get(layerRef);
+      const result = this._sweepInstancesOnLayer(layerRef);
+      cache?.instances.set(layerRef, result);
+      return result;
+    }
+
+    _sweepInstancesOnLayer(layerRef) {
       // Collect the target layer plus every descendant layer up front, then sweep once.
       const layers = new Set([layerRef]);
       const addSublayers = (ref) => {
@@ -1568,35 +1645,56 @@ export default function (parentClass) {
         // Keep ticking while per-object animations are still outstanding, purely so the watchdog
         // below can run: a companion addon that never reports back would otherwise leave Anchor
         // and cursor clamps suspended for good, with no tick left to notice.
-        if (this._tickMotionWatchdog()) return;
+        if (this._tickMotionWatchdog(this._uiDeltaMs())) return;
+        this._lastTickMs = undefined;
         this._setTicking(false);
         return;
       }
       this._syncExternalTransforms();
-      this._tickAnimations(this.runtime.dt * 1000);
+      this._tickAnimations(this._uiDeltaMs());
+    }
+
+    // Wall-clock frame time in ms. UI transitions must not use runtime.dt: it is scaled by the
+    // game timescale, so a screen that pauses the game (game-while-open timescale 0) would freeze
+    // its own opening transition. Capped so a suspended tab does not complete a tween in one jump.
+    _uiDeltaMs() {
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const prev = this._lastTickMs;
+      this._lastTickMs = now;
+      if (prev === undefined) {
+        const ts = this.runtime.timeScale;
+        return ts > 0 ? (this.runtime.dt * 1000) / ts : 1000 / 60;
+      }
+      return Math.min(Math.max(now - prev, 0), 250);
     }
 
     // ─────────────────────────────────────────────────────────
     // Waits for outstanding per-object animations to report back, and gives up after a bounded
     // number of frames so a companion addon that never calls its completion callback cannot leave
     // Anchor or a cursor clamp switched off permanently. Returns true while still waiting.
-    _tickMotionWatchdog() {
+    _tickMotionWatchdog(dt) {
       let waiting = false;
       for (const entry of this._layers.values()) {
-        if (!entry.animMotionsPending || !entry.animSuspendedOwners?.length) continue;
-        entry.animMotionWaitFrames = (entry.animMotionWaitFrames ?? 0) + 1;
-        if (entry.animMotionWaitFrames < MOTION_WATCHDOG_FRAMES) {
+        // Only worth waiting on while this plugin is holding something hostage: suspended
+        // Anchor / cursor behaviours, or a closing layer's objects held at the closed pose.
+        if (!entry.animMotionsPending || !(entry.animSuspendedOwners?.length || entry.animDeferredReset)) continue;
+        entry.animMotionWaitMs = (entry.animMotionWaitMs ?? 0) + dt;
+        if (entry.animMotionWaitMs < MOTION_WATCHDOG_MS) {
           waiting = true;
           continue;
         }
         this._warnOnce(
           `motionstuck:${entry.name}`,
           `${entry.animMotionsPending} per-object transition animation(s) on "${entry.name}" never ` +
-          `reported completion after ${MOTION_WATCHDOG_FRAMES} frames. Handing position control back ` +
-          `so Anchor and cursor behaviours are not left suspended.`
+          `reported completion after ${MOTION_WATCHDOG_MS / 1000} s. Treating them as finished so the ` +
+          `layer reaches its end state and Anchor and cursor behaviours are handed back.`
         );
         entry.animMotionsPending = 0;
-        entry.animMotionWaitFrames = 0;
+        entry.animMotionWaitMs = 0;
+        // Complete the transition rather than just releasing what it holds: for a closing layer the
+        // barrier hides it BEFORE its objects are put back, so nothing pops back open on screen.
+        entry.animBarrier?.force?.();
+        this._flushDeferredReset(entry);   // no-ops once the barrier has done it
         this._resumePositionOwners(entry);
       }
       return waiting;
@@ -1747,27 +1845,39 @@ export default function (parentClass) {
       return true;
     }
 
+    // Returns a signal function; `signal.force()` completes the barrier immediately (used by the
+    // motion watchdog when a per-object animation never reports back) and `signal.cancel()` disarms
+    // it without running `done` (used when a newer transition or a direct state change supersedes it).
     _makeBarrier(count, done) {
-      if (count <= 0) {
-        queueMicrotask(() => done());
-        return () => {};
-      }
-      let remaining = count;
       let fired = false;
-      return () => {
+      const finish = () => {
+        if (fired) return;
+        fired = true;
+        done();
+      };
+      let remaining = count;
+      const signal = () => {
         if (fired) return;
         remaining--;
-        if (remaining <= 0) {
-          fired = true;
-          done();
-        }
+        if (remaining <= 0) finish();
       };
+      signal.force = finish;
+      signal.cancel = () => { fired = true; };
+      return signal;
     }
 
     // Centralized transition wrappers keep action methods focused on intent.
     // OnLayerOpening/OnLayerOpened and OnLayerClosing/OnLayerClosed fire here so
     // every open/close path (navigation, state change, popup) emits them consistently.
     _runOpeningTransition(entry, onOpened) {
+      return this._withSweepCache(() => this._runOpeningTransitionInner(entry, onOpened));
+    }
+
+    _runOpeningTransitionInner(entry, onOpened) {
+      // A close interrupted by this open never completes, so its pending state must not survive to
+      // be applied later (by "Finish animation") to the open screen. Cleared before anything here
+      // can fire a trigger, so a close started synchronously from those triggers keeps its own.
+      entry.pendingState = null;
       this._lastChangedLayer = entry.name;
       this._trigger("OnLayerOpening");
 
@@ -1779,51 +1889,91 @@ export default function (parentClass) {
       // Anchor and cursor clamps must stay suspended until they are ALL finished, or a re-enabled
       // Anchor starts fighting a FlourishCue animation that is still running on the same object.
       entry.animMotionsPending = motions.length;
-      entry.animMotionWaitFrames = 0;
+      entry.animMotionWaitMs = 0;
+      const superseded = entry.animBarrier;
       const signal = this._makeBarrier(1 + motions.length, () => {
+        // Untracked (or re-tracked) while per-object animations were running: not ours any more.
+        if (this._layers.get(entry.name) !== entry) return;
         this._resumePositionOwners(entry);
         onOpened?.();
         this._lastChangedLayer = entry.name;
         this._trigger("OnLayerOpened");
       });
+      entry.animBarrier = signal;
 
       // Ensure objects can run their own intro animation immediately.
       entry.ref.isVisible = true;
 
+      const motionDone = this._motionDoneFor(entry, signal);
       for (const m of motions) {
         try {
-          m._playOpen(() => { entry.animMotionsPending--; signal(); });
+          m._playOpen(motionDone, MOTION_OPTIONS);
         } catch (_) {
-          entry.animMotionsPending--;
-          signal();
+          motionDone();
         }
       }
+      this._invalidateSweepAfterMotions(motions);
       this._startAnim(entry, "opening", () => signal());
+      // _startAnim has let the interrupted transition finish if it could; if it is still waiting on
+      // per-object animations it must never fire now (it would hide this layer or resume owners).
+      superseded?.cancel?.();
     }
 
     _runClosingTransition(entry, onClosed, isBackNav = false) {
+      return this._withSweepCache(() => this._runClosingTransitionInner(entry, onClosed, isBackNav));
+    }
+
+    _runClosingTransitionInner(entry, onClosed, isBackNav) {
       this._lastChangedLayer = entry.name;
       this._trigger("OnLayerClosing");
 
       const motions = this._collectFlourishCue(entry.ref);
       entry.animMotionsPending = motions.length;
-      entry.animMotionWaitFrames = 0;
+      entry.animMotionWaitMs = 0;
+      const superseded = entry.animBarrier;
       const signal = this._makeBarrier(1 + motions.length, () => {
+        if (this._layers.get(entry.name) !== entry) return;
+        onClosed?.();                        // hides the layer
+        this._flushDeferredReset(entry);     // objects back to rest, now out of sight
         this._resumePositionOwners(entry);
-        onClosed?.();
         this._lastChangedLayer = entry.name;
         this._trigger("OnLayerClosed");
       });
+      entry.animBarrier = signal;
 
+      const motionDone = this._motionDoneFor(entry, signal);
       for (const m of motions) {
         try {
-          m._playClose(() => { entry.animMotionsPending--; signal(); });
+          m._playClose(motionDone, MOTION_OPTIONS);
         } catch (_) {
-          entry.animMotionsPending--;
-          signal();
+          motionDone();
         }
       }
+      this._invalidateSweepAfterMotions(motions);
       this._startAnim(entry, "closing", () => signal(), isBackNav);
+      superseded?.cancel?.();
+    }
+
+    // Completion callback handed to each per-object animation. A late callback from a superseded
+    // transition must not decrement the newer transition's pending count.
+    _motionDoneFor(entry, signal) {
+      return () => {
+        if (entry.animBarrier === signal && entry.animMotionsPending > 0) entry.animMotionsPending--;
+        signal();
+      };
+    }
+
+    // A state applied directly (no transition) supersedes whatever transition the layer was in:
+    // disarm its barrier so it cannot hide or re-show the layer later, and put back anything it
+    // was holding (objects at the closed pose, suspended Anchor / cursor behaviours).
+    _abandonTransition(entry) {
+      entry.animBarrier?.cancel?.();
+      entry.animBarrier = null;
+      if (entry.animating) this._completeAnim(entry);
+      entry.animMotionsPending = 0;
+      entry.pendingState = null;
+      this._flushDeferredReset(entry);
+      this._resumePositionOwners(entry);
     }
 
     _prepareForClosing(entry, pendingState = null) {
@@ -1833,6 +1983,7 @@ export default function (parentClass) {
     }
 
     _applyAndClearPendingState(entry) {
+      if (entry.pendingState == null) return;   // cleared by a reopen that interrupted this close
       this._applyState(entry, entry.pendingState);
       entry.pendingState = null;
     }
@@ -1874,8 +2025,10 @@ export default function (parentClass) {
         animBaseTransforms: null,
         animPinned: null,
         animSuspendedOwners: null,
+        animDeferredReset: null,
+        animBarrier: null,
         animMotionsPending: 0,
-        animMotionWaitFrames: 0,
+        animMotionWaitMs: 0,
         animLastTransform: null,
         animBaseOpacities: null,
         animEffectiveType: null,
@@ -1969,6 +2122,7 @@ export default function (parentClass) {
           this._emitLayerStateChanged();
         });
       } else {
+        this._abandonTransition(entry);
         this._applyState(entry, state);
         this._emitLayerStateChanged();
       }
@@ -2250,7 +2404,7 @@ export default function (parentClass) {
         const frame = this._focusStack.pop();
         const entry = this._getEntry(frame.layerName);
         if (entry?.ref) {
-          if (entry.animating) this._completeAnim(entry);
+          this._abandonTransition(entry);
           const ancestor = this._getContainerDirectChild(entry.ref);
           this._moveSublayerToIndex(ancestor, frame.savedIndex);
           this._applyState(entry, entry.prevState ?? "hidden");
@@ -2324,10 +2478,19 @@ export default function (parentClass) {
       const instances = [];
       const layers = [];
       const collisions = [];
+      const owners = [];
 
-      for (const name of this._animatingLayers) {
-        const entry = this._getEntry(name);
-        if (!entry) continue;
+      // Suspended Anchor / cursor behaviours: C3 saves their disabled state, and after a load no
+      // transition is running to hand control back. Covers layers whose tween has finished but
+      // whose per-object animations are still holding owners suspended.
+      for (const entry of this._layers.values()) {
+        for (const { kind, uid, key } of entry.animSuspendedOwners ?? []) {
+          if (typeof uid === "number") owners.push({ uid, key, kind });
+        }
+      }
+
+      for (const [name, entry] of this._layers) {
+        if (!this._animatingLayers.has(name) && !entry.animDeferredReset) continue;
 
         if (entry.animBaseTransforms) {
           for (const [, base] of this._liveTransforms(entry)) {
@@ -2352,8 +2515,8 @@ export default function (parentClass) {
         }
       }
 
-      if (!instances.length && !layers.length && !collisions.length) return null;
-      return { instances, layers, collisions };
+      if (!instances.length && !layers.length && !collisions.length && !owners.length) return null;
+      return { instances, layers, collisions, owners };
     }
 
     // Instances may not exist yet while _loadFromJson() runs, which is why C3 documents
@@ -2389,13 +2552,25 @@ export default function (parentClass) {
         if (inst && typeof inst.collisionsEnabled === "boolean") inst.collisionsEnabled = true;
       }
 
+      const unresolvedOwners = [];
+      for (const rec of pending.owners ?? []) {
+        const inst = typeof this.runtime.getInstanceByUid === "function"
+          ? this.runtime.getInstanceByUid(rec.uid)
+          : null;
+        let b = null;
+        try { b = inst?.behaviors?.[rec.key] ?? null; } catch { b = null; }
+        if (!b) { unresolvedOwners.push(rec); continue; }
+        if (rec.kind === "enabled") b.isEnabled = true;
+        else this._setOwnerControl(b, true);
+      }
+
       if (settled > 0 || (pending.layers?.length ?? 0) > 0) {
         this._log(`Settled ${settled} instance(s) and ${pending.layers?.length ?? 0} layer(s) left mid-transition by a savegame`);
       }
 
-      this._pendingSettle = isFinalPass || unresolved.length === 0
+      this._pendingSettle = isFinalPass || (unresolved.length === 0 && unresolvedOwners.length === 0)
         ? null
-        : { instances: unresolved, layers: [], collisions: [] };
+        : { instances: unresolved, layers: [], collisions: [], owners: unresolvedOwners };
     }
 
     _saveToJson() {
@@ -2426,6 +2601,12 @@ export default function (parentClass) {
     }
 
     _loadFromJson(o) {
+      // Suspensions from before the load refer to pre-load behaviour objects, and the entries being
+      // replaced take their in-flight transitions with them: a name left in _animatingLayers would
+      // otherwise drive the freshly created entry with zeroed animation state.
+      this._ownerSuspendCounts = new Map();
+      this._animatingLayers.clear();
+      this._lastTickMs = undefined;
       this._containerRef = this._resolveContainer();
       this._layers.clear();
       this._focusStack    = [];

@@ -5,7 +5,7 @@ export const config = {
     "Stores a key/value on the target screen and then navigates to it (Push). Read the value back with the LayerData expression. Use to pass context like a selected item into the screen.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

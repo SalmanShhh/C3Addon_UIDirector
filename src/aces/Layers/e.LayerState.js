@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns a layer's current state: 'visible', 'hidden', 'disabled', 'focused', or empty if untracked. Use for debug displays or conditional logic.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

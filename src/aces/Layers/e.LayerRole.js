@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns a layer's role: 'normal', 'popup', 'tooltip', or empty if untracked. Use for debug displays or role-specific logic.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

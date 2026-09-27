@@ -5,7 +5,7 @@ export const config = {
     "Triggers when a layer starts its opening animation. Use LayerAnimProgress / LayerAnimDirection inside. Good for starting music or parallel intro effects.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

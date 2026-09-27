@@ -5,7 +5,7 @@ export const config = {
     "Triggers after a layer finishes its opening animation. A safe point to enable controls or start effects once the layer is fully visible.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

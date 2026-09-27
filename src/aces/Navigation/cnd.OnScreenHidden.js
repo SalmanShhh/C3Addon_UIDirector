@@ -5,7 +5,7 @@ export const config = {
     "Triggers when a screen leaves the focus stack (e.g. after Go back). Use PreviousScreen inside. Good for resuming music or cleaning up after leaving a screen.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

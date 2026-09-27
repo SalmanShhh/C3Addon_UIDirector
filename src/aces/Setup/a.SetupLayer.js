@@ -5,7 +5,7 @@ export const config = {
     "Registers a layer with UIDirector as a screen, popup, or tooltip with sensible defaults. Call once at the start for each UI layer you want to manage.",
   isAsync: false,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",

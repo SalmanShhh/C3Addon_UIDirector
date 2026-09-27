@@ -17,6 +17,7 @@
   "scripts": {
     "webpackBuildStep": "npx webpack build --config ./webpack_buildstep.config.cjs --stats verbose",
     "webpackExport": "npx webpack build --config ./webpack_export.config.cjs --stats verbose",
+    "test": "node tests/runtime.test.mjs",
     "validateAceConfigs": "cd build && node validateAceConfigs.js",
     "generateAceFiles": "cd build && node generateAceFiles.js",
     "generateLang": "cd build && node generateLangJSON.js",

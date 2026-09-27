@@ -3,7 +3,7 @@ export const config = {
   description:
     "Returns the name of the topmost open popup, or empty if none. Use to check which dialog the player is looking at.",
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [],
 };
 

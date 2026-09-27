@@ -5,7 +5,7 @@ export const config = {
     "Triggers when a screen becomes the active screen. Use FocusedLayer / PreviousScreen inside. Good for playing a sound or starting an intro effect.",
   isTrigger: true,
   highlight: false,
-  deprecated: false,
+  isDeprecated: false,
   params: [
     {
       id: "layerName",
